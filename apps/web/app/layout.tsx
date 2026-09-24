@@ -1,46 +1,15 @@
-import { Geist_Mono, Montserrat, Merriweather } from "next/font/google"
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
 
-import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
-import { cn } from "@/lib/utils"
-import { Toaster } from "sonner"
-import { AppLayout } from "@/components/layout/root-layout"
+export const metadata: Metadata = {
+  title: "FairDrops",
+  description: "Verifiable on-chain giveaways powered by skill-based games.",
+};
 
-const merriweatherHeading = Merriweather({
-  subsets: ["latin"],
-  variable: "--font-heading",
-})
-
-const montserrat = Montserrat({ subsets: ["latin"], variable: "--font-sans" })
-
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-})
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className={cn(
-        "antialiased",
-        fontMono.variable,
-        "font-sans",
-        montserrat.variable,
-        merriweatherHeading.variable
-      )}
-    >
-      <body>
-        <ThemeProvider>
-            <Toaster position="top-center" />
-            {children}
-        </ThemeProvider>
-      </body>
+    <html lang="en">
+      <body>{children}</body>
     </html>
-  )
+  );
 }

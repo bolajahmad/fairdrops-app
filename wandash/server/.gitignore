@@ -1,7 +1,0 @@
-node_modules
-dist
-.env
-*.log
-
-# Question bank — do not push to remote
-# src/modules/rounds/games/questions.ts

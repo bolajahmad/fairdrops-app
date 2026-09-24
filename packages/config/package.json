@@ -1,0 +1,42 @@
+{
+  "name": "@fairdrops/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tsconfig/base.json": "./tsconfig/base.json",
+    "./tsconfig/node.json": "./tsconfig/node.json",
+    "./tsconfig/nest.json": "./tsconfig/nest.json",
+    "./tsconfig/nextjs.json": "./tsconfig/nextjs.json",
+    "./eslint/base": "./eslint/base.js",
+    "./eslint/nest": "./eslint/nest.js",
+    "./eslint/next": "./eslint/next.js",
+    "./prettier": "./prettier/index.js",
+    "./vitest/node": {
+      "types": "./vitest/node.d.ts",
+      "default": "./vitest/node.js"
+    },
+    "./vitest/nest": {
+      "types": "./vitest/nest.d.ts",
+      "default": "./vitest/nest.js"
+    }
+  },
+  "dependencies": {
+    "@eslint/js": "catalog:",
+    "@swc/core": "catalog:",
+    "eslint-config-next": "catalog:",
+    "globals": "catalog:",
+    "typescript-eslint": "catalog:",
+    "unplugin-swc": "catalog:"
+  },
+  "peerDependencies": {
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
+  }
+}
