@@ -1,2 +1,11 @@
 pnpm-lock.yaml
 docs/legacy/
+
+# Generated from the Solidity build; see packages/contracts/scripts/artifacts.ts.
+packages/contracts/abi/
+packages/contracts/ts/generated/
+packages/contracts/deployments/
+packages/contracts/broadcast/
+packages/contracts/out/
+packages/contracts/cache/
+apps/web/abi/

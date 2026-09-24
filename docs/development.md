@@ -59,6 +59,11 @@ unawaited promises are a common source of race conditions in the game runtime.
   `docs/legacy/` is excluded because it is kept verbatim for reference.
 - Inline comments only where logic is not self-evident. Longer explanations belong in `docs/`.
 
+## Git hooks
+
+`pnpm install` sets `core.hooksPath` to `.githooks/`. The hooks keep the committed contract ABI in
+sync with the Solidity sources; see [contracts.md](contracts.md#abi-synchronization).
+
 ## Local infrastructure
 
 `infra/compose.yaml` runs Postgres 17, Redis 8 and Anvil. Defaults match `.env.example`; override

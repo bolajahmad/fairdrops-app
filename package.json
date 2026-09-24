@@ -22,7 +22,8 @@
     "verify": "prettier --check . && turbo run lint typecheck test build",
     "infra:up": "docker compose -f infra/compose.yaml up -d --wait",
     "infra:down": "docker compose -f infra/compose.yaml down",
-    "clean": "turbo run clean && rm -rf node_modules .turbo"
+    "clean": "turbo run clean && rm -rf node_modules .turbo",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "@fairdrops/config": "workspace:*",

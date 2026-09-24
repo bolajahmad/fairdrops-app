@@ -9,15 +9,16 @@ build. The original code is preserved on `main`; nothing is carried over without
 
 ## Workspace
 
-| Path              | Package             | Purpose                                                     |
-| ----------------- | ------------------- | ----------------------------------------------------------- |
-| `apps/api`        | `@fairdrops/api`    | NestJS HTTP and Socket.IO gateway                           |
-| `apps/worker`     | `@fairdrops/worker` | NestJS indexer consumer, scheduler, game runtime, finalizer |
-| `apps/web`        | `@fairdrops/web`    | Next.js frontend                                            |
-| `packages/shared` | `@fairdrops/shared` | Zod schemas and inferred types shared by every app          |
-| `packages/config` | `@fairdrops/config` | TypeScript, ESLint, Prettier and Vitest presets             |
-| `infra/`          | -                   | Local Postgres, Redis and Anvil via Docker Compose          |
-| `docs/legacy/`    | -                   | Reference documentation from the original build             |
+| Path                 | Package                | Purpose                                                     |
+| -------------------- | ---------------------- | ----------------------------------------------------------- |
+| `apps/api`           | `@fairdrops/api`       | NestJS HTTP and Socket.IO gateway                           |
+| `apps/worker`        | `@fairdrops/worker`    | NestJS indexer consumer, scheduler, game runtime, finalizer |
+| `apps/web`           | `@fairdrops/web`       | Next.js frontend                                            |
+| `packages/contracts` | `@fairdrops/contracts` | FairDrops escrow (Foundry), ABI and deployment records      |
+| `packages/shared`    | `@fairdrops/shared`    | Zod schemas and inferred types shared by every app          |
+| `packages/config`    | `@fairdrops/config`    | TypeScript, ESLint, Prettier and Vitest presets             |
+| `infra/`             | -                      | Local Postgres, Redis and Anvil via Docker Compose          |
+| `docs/legacy/`       | -                      | Reference documentation from the original build             |
 
 ## Requirements
 
@@ -25,6 +26,7 @@ build. The original code is preserved on `main`; nothing is carried over without
 - pnpm 12.6.0, pinned through `packageManager`. Run `corepack enable pnpm` once so the pinned
   version is used automatically.
 - Docker, for local infrastructure
+- [Foundry](https://getfoundry.sh), for contract work
 
 ## Getting started
 
@@ -54,4 +56,5 @@ pnpm dev
 
 Filter any task to a single package with `pnpm turbo run <task> --filter=@fairdrops/api`.
 
-See [docs/development.md](docs/development.md) for workspace conventions.
+See [docs/development.md](docs/development.md) for workspace conventions and
+[docs/contracts.md](docs/contracts.md) for the contract design, security review and deployments.

@@ -1,0 +1,4 @@
+{
+  "extends": "@fairdrops/config/tsconfig/node.json",
+  "include": ["ts", "scripts"]
+}

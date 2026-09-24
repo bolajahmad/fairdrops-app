@@ -27,6 +27,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      - uses: foundry-rs/foundry-toolchain@v1
+
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm format:check
@@ -34,3 +36,8 @@ jobs:
       - run: pnpm check:emoji
 
       - run: pnpm turbo run lint typecheck test build
+        env:
+          FOUNDRY_PROFILE: ci
+
+      - name: Committed contract ABI matches the sources
+        run: pnpm --filter @fairdrops/contracts abi:check

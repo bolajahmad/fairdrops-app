@@ -1,0 +1,39 @@
+{
+  "name": "@fairdrops/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "forge fmt --check && eslint .",
+    "test": "forge test",
+    "compile": "forge build",
+    "abi:sync": "node scripts/artifacts.ts abi",
+    "abi:check": "node scripts/artifacts.ts abi --check",
+    "deploy:contract": "forge script script/Deploy.s.sol --broadcast --slow --rpc-url",
+    "deployments:export": "node scripts/artifacts.ts deployments",
+    "clean": "rm -rf dist out cache .turbo"
+  },
+  "dependencies": {
+    "@fairdrops/shared": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@fairdrops/config": "workspace:*",
+    "@openzeppelin/contracts": "catalog:",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "forge-std": "catalog:",
+    "typescript": "catalog:"
+  }
+}

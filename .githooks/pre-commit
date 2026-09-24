@@ -1,0 +1,8 @@
+#!/bin/sh
+# Rebuilds the contract ABI and stages refreshed copies when contract sources are part of the
+# commit. See docs/contracts.md.
+set -e
+
+if git diff --cached --name-only | grep -Eq '^packages/contracts/(src/|foundry\.toml$|abi/)|^apps/web/abi/'; then
+  node packages/contracts/scripts/artifacts.ts abi --stage
+fi
