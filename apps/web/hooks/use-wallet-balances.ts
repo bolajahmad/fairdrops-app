@@ -7,9 +7,8 @@ import { useBalance, useReadContracts } from "wagmi"
 
 export const useWalletBalances = (address?: `0x${string}`) => {
   const { data: nativeBalance } = useBalance({
-    chainId: baseChain.id
+    chainId: baseChain.id,
   })
-  console.log({ nativeBalance });
 
   const { data } = useReadContracts({
     contracts: [
