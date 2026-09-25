@@ -21,7 +21,7 @@ contract Deploy is Script {
             return FairDrops(predicted);
         }
 
-        vm.startBroadcast(vm.envUint("DEPLOYER_PRIVATE_KEY"));
+        vm.startBroadcast(_deployerKey());
         deployed = new FairDrops{salt: salt}(params);
         vm.stopBroadcast();
 
@@ -42,6 +42,14 @@ contract Deploy is Script {
     {
         bytes memory initCode = abi.encodePacked(type(FairDrops).creationCode, abi.encode(params));
         return vm.computeCreate2Address(salt, keccak256(initCode), CREATE2_FACTORY);
+    }
+
+    /// @dev Accepts the key with or without a 0x prefix, as cast does.
+    function _deployerKey() private view returns (uint256) {
+        string memory key = vm.envString("DEPLOYER_PRIVATE_KEY");
+        bytes memory raw = bytes(key);
+        bool prefixed = raw.length >= 2 && raw[0] == "0" && (raw[1] == "x" || raw[1] == "X");
+        return vm.parseUint(prefixed ? key : string.concat("0x", key));
     }
 
     function _config() private view returns (bytes32 salt, IFairDrops.InitParams memory params) {

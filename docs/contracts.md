@@ -139,31 +139,8 @@ Each copy exports `fairDropsAbiHash`, a SHA-256 of the ABI, which the API also r
 
 ## Deploying
 
-1. Copy `packages/contracts/.env.example` to `packages/contracts/.env` and fill it in. The role
-   addresses must be identical on every chain for the address to match.
-2. Check the address the configuration produces:
-
-   ```bash
-   cd packages/contracts && forge script script/Deploy.s.sol --sig "predict()"
-   ```
-
-3. Fund the deployer on each chain, then deploy. Re-running on a chain that already has the
-   contract does nothing.
-
-   ```bash
-   pnpm --filter @fairdrops/contracts deploy:contract monad-testnet
-   pnpm --filter @fairdrops/contracts deploy:contract sepolia
-   pnpm --filter @fairdrops/contracts deploy:contract base-sepolia
-   pnpm --filter @fairdrops/contracts deploy:contract polkadot-hub-testnet
-   ```
-
-4. Record the deployments and commit `deployments/`, `broadcast/` and `ts/generated/`:
-
-   ```bash
-   pnpm --filter @fairdrops/contracts deployments:export
-   ```
-
-Local Anvil deployments are never exported.
+See [deployment.md](deployment.md) for the step-by-step runbook for local, testnet and mainnet,
+including verification and troubleshooting.
 
 ## API
 

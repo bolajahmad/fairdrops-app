@@ -57,4 +57,5 @@ pnpm dev
 Filter any task to a single package with `pnpm turbo run <task> --filter=@fairdrops/api`.
 
 See [docs/development.md](docs/development.md) for workspace conventions and
-[docs/contracts.md](docs/contracts.md) for the contract design, security review and deployments.
+[docs/contracts.md](docs/contracts.md) for the contract design and security review, and
+[docs/deployment.md](docs/deployment.md) for deploying the contracts.

@@ -1,0 +1,12 @@
+{
+  "contract": "FairDrops",
+  "version": "1",
+  "chainId": 420420417,
+  "address": "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca",
+  "transactionHash": "0xd697abcc3ee4345f1f22925b61f6e47c925ae6c0fba5ce9ce26345f051b0003e",
+  "blockNumber": 13680453,
+  "deployer": "0x9281e0888a4b6e7360f739be740c0e696c3ced2c",
+  "salt": "0x3a69fe70f1d51d541d91956a9a615f1de8f7b8c5954a1ea27af31ebe708ff3e2",
+  "abiHash": "0x59edeb3111b2195a531884623fdf0da6b92867abf40d2dcfffa9037d6e579a5c",
+  "deployedAt": "2026-09-25T12:09:15.000Z"
+}
