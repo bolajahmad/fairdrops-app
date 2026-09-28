@@ -3,9 +3,9 @@
 Every giveaway starts on-chain, so the database learns about giveaways, top-ups, results, claims
 and refunds from FairDrops contract events. Two pieces do this:
 
-- **`packages/subgraph`**, a subgraph deployed to Goldsky once per chain. It turns the
+- `packages/subgraph`, a subgraph deployed to Goldsky once per chain. It turns the
   contract's logs into a single, chain-ordered feed of events.
-- **The indexer in `apps/worker`**, which copies that feed into Postgres and builds the
+- **The indexer in** `apps/worker`, which copies that feed into Postgres and builds the
   giveaway tables the API reads.
 
 ```
@@ -36,11 +36,11 @@ subgraph's start block is the deployment block from that record, so nothing is c
 
 `schema.graphql` defines two entities:
 
-- **`FairDropsEvent`** is immutable, one row per FairDrops log, covering every event in the ABI:
+- `FairDropsEvent` is immutable, one row per FairDrops log, covering every event in the ABI:
   giveaway lifecycle, payout wallets, fees, configuration, roles and pausing. Its id is the block
   number (8 bytes) followed by the log index (4 bytes), big-endian, so sorting by id is chain
   order and `id_gt` is a cursor. Parameters keep their Solidity names.
-- **`Giveaway`** is the current state of each giveaway, for GraphQL consumers such as explorers
+- `Giveaway` is the current state of each giveaway, for GraphQL consumers such as explorers
   and result verifiers. The worker does not read it.
 
 Role and pause events are indexed so anyone can check which verifiers could sign a settlement
@@ -63,17 +63,17 @@ you move the tag.
 1. Log in once: `goldsky login`.
 2. Deploy a version to every indexed chain, or name specific chains:
 
-   ```bash
-   pnpm --filter @fairdrops/subgraph deploy 1.0.0
-   pnpm --filter @fairdrops/subgraph deploy 1.0.1 base-sepolia
-   ```
+```bash
+ pnpm --filter @fairdrops/subgraph subgraph:deploy 1.0.0
+ pnpm --filter @fairdrops/subgraph subgraph:deploy 1.0.1 base-sepolia
+```
 
 3. Wait until each deployment has caught up with its chain (`goldsky subgraph list`, or the
    dashboard), then point the worker at it:
 
-   ```bash
-   pnpm --filter @fairdrops/subgraph promote 1.0.0
-   ```
+```bash
+pnpm --filter @fairdrops/subgraph subgraph:promote 1.0.0
+```
 
 4. Set `GOLDSKY_PROJECT_ID` on the worker, and `GOLDSKY_API_TOKEN` to read the private endpoints.
 
@@ -209,7 +209,7 @@ endpoints in production.
 2. Check that Goldsky supports the chain for subgraphs, and set `subgraphNetwork` in its
    registry entry to Goldsky's network name.
 3. Deploy and promote the subgraph for it:
-   `pnpm --filter @fairdrops/subgraph deploy <version> <chain key>`, then `promote`.
+   `pnpm --filter @fairdrops/subgraph subgraph:deploy <version> <chain key>`, then `subgraph:promote`.
 
 The worker picks the chain up on its next start.
 
