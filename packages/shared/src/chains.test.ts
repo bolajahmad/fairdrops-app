@@ -5,6 +5,7 @@ import {
   chainsInEnvironment,
   explorerAddressUrl,
   findChain,
+  subgraphName,
 } from "./chains.js";
 
 describe("chain registry", () => {
@@ -27,6 +28,13 @@ describe("chain registry", () => {
       "polkadot-hub-testnet",
     ]);
     expect(chainsInEnvironment("mainnet")).toEqual([]);
+  });
+
+  it("names one subgraph per chain Goldsky can index", () => {
+    const indexed = chains.filter((c) => c.subgraphNetwork !== null);
+    expect(indexed.map((c) => c.key)).toEqual(["monad-testnet", "sepolia", "base-sepolia"]);
+    expect(new Set(indexed.map((c) => c.subgraphNetwork)).size).toBe(indexed.length);
+    expect(subgraphName(findChain(84532)!)).toBe("fairdrops-base-sepolia");
   });
 
   it("builds explorer links only for chains with an explorer", () => {

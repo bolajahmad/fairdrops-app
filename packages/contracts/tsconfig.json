@@ -1,4 +1,4 @@
 {
   "extends": "@fairdrops/config/tsconfig/node.json",
-  "include": ["ts", "scripts"]
+  "include": ["ts", "scripts", "test/**/*.ts", "vitest.config.ts"]
 }

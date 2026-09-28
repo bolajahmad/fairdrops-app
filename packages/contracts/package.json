@@ -16,7 +16,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "forge fmt --check && eslint .",
-    "test": "forge test",
+    "test": "forge test && vitest run",
     "compile": "forge build",
     "abi:sync": "node scripts/artifacts.ts abi",
     "abi:check": "node scripts/artifacts.ts abi --check",
@@ -34,6 +34,7 @@
     "@types/node": "catalog:",
     "eslint": "catalog:",
     "forge-std": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

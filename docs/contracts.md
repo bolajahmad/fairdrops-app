@@ -18,17 +18,28 @@ an entry there and an RPC alias in `packages/contracts/foundry.toml`.
 
 ## Lifecycle
 
+```mermaid
+stateDiagram-v2
+    [*] --> Active: createGiveaway
+
+    Active --> Active_SeedCommitted: commitSeed (before start)
+    Active --> Cancelled: cancel (host before start,\noperator any time)
+    Active --> Expired: withdraw after finalizeDeadline
+
+    Active_SeedCommitted: Active (seed committed)
+    Active_SeedCommitted --> Finalized: finalize (verifier signatures,\nstart <= now <= finalizeDeadline)
+
+    Finalized --> Winners: claim / claimMany
+    Finalized --> Withdrawn: withdraw: remainder now,\nunclaimed after claimDeadline
+
+    Cancelled --> [*]
+    Expired --> [*]
+    Finalized --> [*]
+    Winners --> [*]
+    Withdrawn --> [*]
 ```
-createGiveaway -> Active --commitSeed (before start)--> Active (seed committed)
-                    |                                       |
-                    |- cancel (host before start,           |- finalize (verifier signatures,
-                    |   operator any time) -> Cancelled     |   start <= now <= finalizeDeadline)
-                    |                                       v
-                    `- withdraw after finalizeDeadline    Finalized --claim / claimMany--> winners
-                        -> Expired                            |
-                                                              `- withdraw: remainder now,
-                                                                 unclaimed after claimDeadline
-```
+
+# End of Selection
 
 1. **Create.** The host escrows `amount` of a token (or the native currency). The fee is
    escrowed separately and only earned if the giveaway is finalized. For ERC-20 prizes the

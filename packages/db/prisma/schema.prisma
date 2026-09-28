@@ -1,0 +1,313 @@
+// FairDrops database schema.
+//
+// Conventions: our own entities use UUIDv7 keys; addresses are lowercase CHAR(42) and hashes
+// lowercase CHAR(64 or 66), enforced by CHECK constraints in the migrations; timestamps are
+// TIMESTAMPTZ(3). Enum values mirror the zod enums in @fairdrops/shared, and a test asserts
+// that they match.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Identity
+
+model User {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  handle          String?   @unique
+  handleChangedAt DateTime? @map("handle_changed_at") @db.Timestamptz(3)
+  displayName     String?   @map("display_name")
+  bio             String?
+  avatarUrl       String?   @map("avatar_url")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  wallets         Wallet[]
+  socials         SocialLink[]
+  sessions        AuthSession[]
+  apiKeys         ApiKey[]
+  gameDefinitions GameDefinition[] @relation("GameDefinitionOwner")
+  reviewedGames   GameDefinition[] @relation("GameDefinitionReviewer")
+
+  @@map("users")
+}
+
+enum WalletKind {
+  EOA
+  CONTRACT
+}
+
+enum WalletConnector {
+  web3auth
+  injected
+  walletconnect
+  other
+}
+
+model Wallet {
+  address      String           @id @db.Char(42)
+  userId       String           @map("user_id") @db.Uuid
+  kind         WalletKind
+  connector    WalletConnector?
+  linkedAt     DateTime         @default(now()) @map("linked_at") @db.Timestamptz(3)
+  lastSignInAt DateTime?        @map("last_sign_in_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@map("wallets")
+}
+
+enum SocialPlatform {
+  x
+  instagram
+  tiktok
+  youtube
+  twitch
+  discord
+  telegram
+  github
+  website
+}
+
+model SocialLink {
+  userId     String         @map("user_id") @db.Uuid
+  platform   SocialPlatform
+  handle     String
+  verifiedAt DateTime?      @map("verified_at") @db.Timestamptz(3)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, platform])
+  @@map("social_links")
+}
+
+// Authentication
+
+model AuthSession {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  /// Shared by every rotation of one sign-in, so a replayed refresh token revokes them all.
+  familyId         String    @map("family_id") @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  walletAddress    String    @map("wallet_address") @db.Char(42)
+  /// SHA-256 of the refresh token, hex encoded.
+  refreshTokenHash String    @unique @map("refresh_token_hash") @db.Char(64)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  lastUsedAt       DateTime? @map("last_used_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revokedReason    String?   @map("revoked_reason")
+  userAgent        String?   @map("user_agent")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("auth_sessions")
+}
+
+model ApiKey {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  name       String
+  /// First characters of the key, shown so owners can tell keys apart.
+  prefix     String    @unique
+  /// SHA-256 of the full key, hex encoded.
+  secretHash String    @map("secret_hash") @db.Char(64)
+  scopes     String[]
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(3)
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(3)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+// Games
+
+enum GameMode {
+  HOSTED
+  EXTERNAL
+}
+
+enum GameDefinitionStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  DISABLED
+}
+
+model GameDefinition {
+  id              String
+  version         String
+  name            String
+  description     String
+  mode            GameMode
+  status          GameDefinitionStatus @default(DRAFT)
+  /// JSON Schema for the settings a host picks.
+  configSchema    Json                 @map("config_schema")
+  uiUrl           String?              @map("ui_url")
+  /// External games: the key that signs score reports.
+  reporterAddress String?              @map("reporter_address") @db.Char(42)
+  /// Hosted games: hash of the published game bundle.
+  codeHash        String?              @map("code_hash") @db.Char(66)
+  ownerId         String               @map("owner_id") @db.Uuid
+  reviewNote      String?              @map("review_note")
+  reviewedById    String?              @map("reviewed_by_id") @db.Uuid
+  submittedAt     DateTime?            @map("submitted_at") @db.Timestamptz(3)
+  reviewedAt      DateTime?            @map("reviewed_at") @db.Timestamptz(3)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  owner      User  @relation("GameDefinitionOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  reviewedBy User? @relation("GameDefinitionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@id([id, version])
+  @@index([ownerId])
+  @@index([status])
+  @@map("game_definitions")
+}
+
+// On-chain state
+//
+// Built by the worker's indexer from the FairDrops subgraph, one chain at a time, and written
+// only by it. Every row traces back to a contract event; see docs/indexer.md.
+
+enum OnchainStatus {
+  ACTIVE
+  FINALIZED
+  CANCELLED
+  EXPIRED
+}
+
+enum GiveawayEventKind {
+  CREATED
+  FUNDS_ADDED
+  SEED_COMMITTED
+  FINALIZED
+  CANCELLED
+  EXPIRED
+  CLAIMED
+  HOST_WITHDRAWAL
+}
+
+/// Indexing progress for one FairDrops deployment.
+model ChainSync {
+  chainId         Int       @map("chain_id")
+  contractAddress String    @map("contract_address") @db.Char(42)
+  /// Id of the last event copied (block number and log index, big-endian, as hex).
+  cursor          String    @default("0x000000000000000000000000") @db.Char(26)
+  /// Block hash of the last event copied, re-checked on every poll to detect deep reorgs.
+  cursorBlockHash String?   @map("cursor_block_hash") @db.Char(66)
+  /// Every event up to and including this block has been copied.
+  syncedBlock     BigInt    @default(0) @map("synced_block")
+  /// Latest block the subgraph had indexed at the last poll.
+  headBlock       BigInt?   @map("head_block")
+  /// Goldsky deployment id the last batch came from.
+  deployment      String?
+  lastError       String?   @map("last_error")
+  lastErrorAt     DateTime? @map("last_error_at") @db.Timestamptz(3)
+  /// Set when the copied history no longer matches the chain. Syncing stops until cleared.
+  haltedAt        DateTime? @map("halted_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@id([chainId, contractAddress])
+  @@map("chain_syncs")
+}
+
+model Giveaway {
+  chainId            Int           @map("chain_id")
+  /// bytes32 id assigned by the contract.
+  giveawayId         String        @map("giveaway_id") @db.Char(66)
+  contractAddress    String        @map("contract_address") @db.Char(42)
+  host               String        @db.Char(42)
+  /// Zero address for the native currency.
+  token              String        @db.Char(42)
+  prize              Decimal       @db.Decimal(78, 0)
+  fee                Decimal       @db.Decimal(78, 0)
+  startTime          DateTime      @map("start_time") @db.Timestamptz(3)
+  finalizeDeadline   DateTime      @map("finalize_deadline") @db.Timestamptz(3)
+  maxWinners         Int           @map("max_winners")
+  claimWindowSeconds Int           @map("claim_window_seconds")
+  metadataHash       String        @map("metadata_hash") @db.Char(66)
+  /// Exact bytes the host emitted; their keccak256 is metadata_hash.
+  metadataRaw        Bytes         @map("metadata_raw")
+  /// The parsed document, or null when it failed validation (see metadata_error).
+  metadata           Json?
+  metadataError      String?       @map("metadata_error")
+  status             OnchainStatus @default(ACTIVE)
+  seedCommitment     String?       @map("seed_commitment") @db.Char(66)
+  seed               String?       @db.Char(66)
+  payoutRoot         String?       @map("payout_root") @db.Char(66)
+  totalPayout        Decimal       @default(0) @map("total_payout") @db.Decimal(78, 0)
+  winnerCount        Int           @default(0) @map("winner_count")
+  transcriptHash     String?       @map("transcript_hash") @db.Char(66)
+  claimDeadline      DateTime?     @map("claim_deadline") @db.Timestamptz(3)
+  claimed            Decimal       @default(0) @db.Decimal(78, 0)
+  withdrawn          Decimal       @default(0) @db.Decimal(78, 0)
+  createdBlock       BigInt        @map("created_block")
+  createdTxHash      String        @map("created_tx_hash") @db.Char(66)
+  /// Block time of the GiveawayCreated event.
+  createdAt          DateTime      @map("created_at") @db.Timestamptz(3)
+  /// Block of the last event applied to this row.
+  updatedBlock       BigInt        @map("updated_block")
+
+  events GiveawayEvent[]
+
+  @@id([chainId, giveawayId])
+  @@index([status, startTime])
+  @@index([host])
+  @@map("giveaways")
+}
+
+/// The on-chain activity log of a giveaway: every contract event about it, in chain order.
+model GiveawayEvent {
+  chainId         Int               @map("chain_id")
+  blockNumber     BigInt            @map("block_number")
+  logIndex        Int               @map("log_index")
+  giveawayId      String            @map("giveaway_id") @db.Char(66)
+  kind            GiveawayEventKind
+  blockHash       String            @map("block_hash") @db.Char(66)
+  transactionHash String            @map("transaction_hash") @db.Char(66)
+  timestamp       DateTime          @db.Timestamptz(3)
+  /// Who acted: the host for CREATED, FUNDS_ADDED and HOST_WITHDRAWAL, the canceller for
+  /// CANCELLED, the winner for CLAIMED.
+  account         String?           @db.Char(42)
+  /// Where funds went, for CLAIMED and HOST_WITHDRAWAL.
+  recipient       String?           @db.Char(42)
+  /// Prize escrowed (CREATED, FUNDS_ADDED), total payout (FINALIZED) or amount paid (CLAIMED,
+  /// HOST_WITHDRAWAL).
+  amount          Decimal?          @db.Decimal(78, 0)
+  /// Fee escrowed alongside the prize (CREATED, FUNDS_ADDED).
+  fee             Decimal?          @db.Decimal(78, 0)
+
+  giveaway Giveaway @relation(fields: [chainId, giveawayId], references: [chainId, giveawayId], onDelete: Restrict)
+
+  @@id([chainId, blockNumber, logIndex])
+  @@index([chainId, giveawayId, blockNumber, logIndex])
+  @@index([account])
+  @@map("giveaway_events")
+}
+
+/// Where a FairDrops deployment sends funds owed to an account, when the account has set one.
+model PayoutWallet {
+  chainId         Int      @map("chain_id")
+  contractAddress String   @map("contract_address") @db.Char(42)
+  account         String   @db.Char(42)
+  wallet          String   @db.Char(42)
+  updatedBlock    BigInt   @map("updated_block")
+  updatedAt       DateTime @map("updated_at") @db.Timestamptz(3)
+
+  @@id([chainId, contractAddress, account])
+  @@map("payout_wallets")
+}

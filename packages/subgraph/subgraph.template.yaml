@@ -1,0 +1,67 @@
+# Rendered once per chain by scripts/subgraph.ts into subgraph.<chain key>.yaml. The values in
+# double braces come from packages/contracts/deployments and the chain registry.
+specVersion: 1.2.0
+description: FairDrops giveaway escrow on {{chainName}}
+repository: https://github.com/bolajahmad/wandash-monadblitzlagos
+schema:
+  file: ./schema.graphql
+indexerHints:
+  prune: auto
+dataSources:
+  - kind: ethereum
+    name: FairDrops
+    network: {{network}}
+    source:
+      address: "{{address}}"
+      abi: FairDrops
+      startBlock: {{startBlock}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - FairDropsEvent
+        - Giveaway
+      abis:
+        - name: FairDrops
+          file: ../contracts/abi/FairDrops.json
+      eventHandlers:
+        - event: GiveawayCreated(indexed bytes32,indexed address,indexed address,uint256,uint256,uint64,uint64,uint32,uint32,bytes32,bytes)
+          handler: handleGiveawayCreated
+        - event: FundsAdded(indexed bytes32,indexed address,uint256,uint256)
+          handler: handleFundsAdded
+        - event: SeedCommitted(indexed bytes32,bytes32)
+          handler: handleSeedCommitted
+        - event: GiveawayFinalized(indexed bytes32,bytes32,uint256,uint32,bytes32,bytes32,uint64)
+          handler: handleGiveawayFinalized
+        - event: GiveawayCancelled(indexed bytes32,indexed address)
+          handler: handleGiveawayCancelled
+        - event: GiveawayExpired(indexed bytes32)
+          handler: handleGiveawayExpired
+        - event: Claimed(indexed bytes32,indexed address,indexed address,uint256)
+          handler: handleClaimed
+        - event: HostWithdrawal(indexed bytes32,indexed address,indexed address,uint256)
+          handler: handleHostWithdrawal
+        - event: PayoutWalletSet(indexed address,indexed address)
+          handler: handlePayoutWalletSet
+        - event: FeesWithdrawn(indexed address,indexed address,uint256)
+          handler: handleFeesWithdrawn
+        - event: Swept(indexed address,indexed address,uint256)
+          handler: handleSwept
+        - event: FeeBpsUpdated(uint16)
+          handler: handleFeeBpsUpdated
+        - event: FeeRecipientUpdated(address)
+          handler: handleFeeRecipientUpdated
+        - event: ClaimWindowUpdated(uint32)
+          handler: handleClaimWindowUpdated
+        - event: VerifierThresholdUpdated(uint8)
+          handler: handleVerifierThresholdUpdated
+        - event: RoleGranted(indexed bytes32,indexed address,indexed address)
+          handler: handleRoleGranted
+        - event: RoleRevoked(indexed bytes32,indexed address,indexed address)
+          handler: handleRoleRevoked
+        - event: Paused(address)
+          handler: handlePaused
+        - event: Unpaused(address)
+          handler: handleUnpaused
+      file: ./src/fair-drops.ts

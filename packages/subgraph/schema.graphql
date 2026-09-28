@@ -1,0 +1,117 @@
+"""
+Every FairDrops event name, used as FairDropsEvent.kind. Values match the Solidity event names.
+"""
+enum EventKind {
+  GiveawayCreated
+  FundsAdded
+  SeedCommitted
+  GiveawayFinalized
+  GiveawayCancelled
+  GiveawayExpired
+  Claimed
+  HostWithdrawal
+  PayoutWalletSet
+  FeesWithdrawn
+  Swept
+  FeeBpsUpdated
+  FeeRecipientUpdated
+  ClaimWindowUpdated
+  VerifierThresholdUpdated
+  RoleGranted
+  RoleRevoked
+  Paused
+  Unpaused
+}
+
+"""
+One row per FairDrops log, in chain order. This is the feed the FairDrops worker copies into
+Postgres, so it is immutable and its id sorts in the order the logs were emitted.
+
+Parameters are stored under their Solidity names. Only the parameters of `kind` are set; the
+rest are null.
+"""
+type FairDropsEvent @entity(immutable: true) {
+  "Block number (8 bytes) followed by log index (4 bytes), big-endian."
+  id: Bytes!
+  kind: EventKind!
+  giveaway: Giveaway
+  blockNumber: BigInt!
+  blockHash: Bytes!
+  timestamp: BigInt!
+  transactionHash: Bytes!
+  logIndex: BigInt!
+
+  host: Bytes
+  token: Bytes
+  prize: BigInt
+  fee: BigInt
+  startTime: BigInt
+  finalizeDeadline: BigInt
+  maxWinners: BigInt
+  claimWindow: BigInt
+  metadataHash: Bytes
+  metadata: Bytes
+  from: Bytes
+  prizeAdded: BigInt
+  feeAdded: BigInt
+  commitment: Bytes
+  payoutRoot: Bytes
+  totalPayout: BigInt
+  winnerCount: BigInt
+  seed: Bytes
+  transcriptHash: Bytes
+  claimDeadline: BigInt
+  by: Bytes
+  account: Bytes
+  recipient: Bytes
+  amount: BigInt
+  wallet: Bytes
+  to: Bytes
+  feeBps: BigInt
+  feeRecipient: Bytes
+  threshold: BigInt
+  role: Bytes
+  sender: Bytes
+}
+
+enum GiveawayStatus {
+  ACTIVE
+  FINALIZED
+  CANCELLED
+  EXPIRED
+}
+
+"""
+Current state of a giveaway, for GraphQL consumers such as explorers and result verifiers. The
+FairDrops API builds the same state in its own database from FairDropsEvent.
+
+`status` is the stored status. A giveaway past its finalize deadline stays ACTIVE here until
+the host's first withdrawal expires it on-chain.
+"""
+type Giveaway @entity(immutable: false) {
+  id: Bytes!
+  host: Bytes!
+  token: Bytes!
+  prize: BigInt!
+  fee: BigInt!
+  startTime: BigInt!
+  finalizeDeadline: BigInt!
+  maxWinners: BigInt!
+  claimWindow: BigInt!
+  metadataHash: Bytes!
+  metadata: Bytes!
+  status: GiveawayStatus!
+  seedCommitment: Bytes
+  seed: Bytes
+  payoutRoot: Bytes
+  totalPayout: BigInt!
+  winnerCount: BigInt!
+  transcriptHash: Bytes
+  claimDeadline: BigInt
+  claimed: BigInt!
+  withdrawn: BigInt!
+  createdAtBlock: BigInt!
+  createdAtTimestamp: BigInt!
+  createdAtTransaction: Bytes!
+  events: [FairDropsEvent!]! @derivedFrom(field: "giveaway")
+}

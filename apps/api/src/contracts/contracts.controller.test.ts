@@ -6,6 +6,7 @@ import {
   deployedContractSchema,
   environmentContractsResponseSchema,
   type ContractDeployment,
+  type Hex,
 } from "@fairdrops/shared";
 import { fairDropsAbiHash } from "@fairdrops/contracts";
 import request from "supertest";
@@ -15,7 +16,7 @@ import { CONTRACT_DEPLOYMENTS } from "./contracts.tokens.js";
 
 const ADDRESS = "0x32134ea591625d73d3aba7dedfe12422ab95d9dc";
 
-function deployment(chainId: number, abiHash: string = fairDropsAbiHash): ContractDeployment {
+function deployment(chainId: number, abiHash: Hex = fairDropsAbiHash): ContractDeployment {
   return {
     contract: "FairDrops",
     version: "1",

@@ -17,6 +17,14 @@ export const chainSchema = z.object({
   blockExplorer: z.object({ name: z.string().min(1), url: z.url() }).nullable(),
   /** Blocks to wait before treating a log as final. */
   confirmations: z.number().int().nonnegative(),
+  /**
+   * Network name of this chain on Goldsky, where the FairDrops subgraph is deployed. Null when
+   * Goldsky cannot index the chain, in which case the indexer skips it.
+   */
+  subgraphNetwork: z
+    .string()
+    .regex(/^[a-z0-9-]+$/)
+    .nullable(),
 });
 export type Chain = z.infer<typeof chainSchema>;
 
@@ -30,6 +38,7 @@ export const chains = [
     rpcUrls: ["http://127.0.0.1:8545"],
     blockExplorer: null,
     confirmations: 0,
+    subgraphNetwork: null,
   },
   {
     chainId: 10143,
@@ -40,6 +49,7 @@ export const chains = [
     rpcUrls: ["https://testnet-rpc.monad.xyz"],
     blockExplorer: { name: "Monadscan", url: "https://testnet.monadscan.com" },
     confirmations: 1,
+    subgraphNetwork: "monad-testnet",
   },
   {
     chainId: 11155111,
@@ -50,6 +60,7 @@ export const chains = [
     rpcUrls: ["https://ethereum-sepolia-rpc.publicnode.com"],
     blockExplorer: { name: "Etherscan", url: "https://sepolia.etherscan.io" },
     confirmations: 3,
+    subgraphNetwork: "sepolia",
   },
   {
     chainId: 84532,
@@ -60,6 +71,7 @@ export const chains = [
     rpcUrls: ["https://sepolia.base.org"],
     blockExplorer: { name: "Basescan", url: "https://sepolia.basescan.org" },
     confirmations: 2,
+    subgraphNetwork: "base-sepolia",
   },
   {
     chainId: 420420417,
@@ -73,6 +85,7 @@ export const chains = [
     ],
     blockExplorer: { name: "Blockscout", url: "https://blockscout-testnet.polkadot.io" },
     confirmations: 1,
+    subgraphNetwork: null,
   },
 ] as const satisfies readonly Chain[];
 
@@ -85,6 +98,14 @@ export function findChain(chainId: number): Chain | undefined {
 export function chainsInEnvironment(environment: DeploymentEnvironment): Chain[] {
   return chains.filter((chain) => chain.environment === environment);
 }
+
+/** Name of the chain's FairDrops subgraph on Goldsky. Every chain has its own deployment. */
+export function subgraphName(chain: Chain): string {
+  return `fairdrops-${chain.key}`;
+}
+
+/** Tag the worker reads from. Promoting a new subgraph version moves this tag. */
+export const SUBGRAPH_TAG = "prod";
 
 export function explorerAddressUrl(chain: Chain, address: string): string | null {
   return chain.blockExplorer ? `${chain.blockExplorer.url}/address/${address}` : null;

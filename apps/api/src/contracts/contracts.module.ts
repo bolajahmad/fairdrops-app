@@ -14,5 +14,6 @@ import { CONTRACT_ABI, CONTRACT_DEPLOYMENTS, type ContractAbi } from "./contract
       useValue: { abi: fairDropsAbi, hash: fairDropsAbiHash } satisfies ContractAbi,
     },
   ],
+  exports: [ContractsService],
 })
 export class ContractsModule {}

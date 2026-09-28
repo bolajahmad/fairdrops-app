@@ -1,0 +1,7 @@
+build/
+generated/
+subgraph.yaml
+subgraph.*.yaml
+!subgraph.template.yaml
+tests/.bin/
+tests/.latest.json

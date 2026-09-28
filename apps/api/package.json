@@ -10,22 +10,28 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "clean": "rm -rf dist .turbo"
+    "clean": "rm -rf dist .turbo",
+    "auth:generate-key": "node scripts/generate-signing-key.ts"
   },
   "dependencies": {
     "@fairdrops/contracts": "workspace:*",
+    "@fairdrops/db": "workspace:*",
     "@fairdrops/shared": "workspace:*",
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",
     "@nestjs/platform-express": "catalog:",
+    "ioredis": "catalog:",
+    "jose": "catalog:",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
+    "viem": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@fairdrops/config": "workspace:*",
     "@nestjs/cli": "catalog:",
     "@nestjs/testing": "catalog:",
+    "@types/express": "catalog:",
     "@types/node": "catalog:",
     "@types/supertest": "catalog:",
     "eslint": "catalog:",

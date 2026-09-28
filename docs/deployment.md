@@ -232,6 +232,12 @@ git commit -m "Deploy FairDrops to testnet"
 `broadcast/` holds the signed transactions and receipts, which are the audit trail of the
 deployment. It contains no secrets.
 
+### 9. Index it
+
+Deploy and promote the subgraph for the new deployments so the worker picks them up. The
+subgraph's start block comes from the records you just committed. See
+[indexer.md](indexer.md#deploying).
+
 ## Mainnet
 
 The commands are the same as for testnet. The differences are in how the roles are held and
@@ -273,8 +279,9 @@ what you check first.
    ```
 
 2. Add the chain to `packages/shared/src/chains.ts` and an alias to the `[rpc_endpoints]` table in
-   `packages/contracts/foundry.toml`.
-3. Deploy with the same `.env` as the rest of its environment, then run steps 4 to 8.
+   `packages/contracts/foundry.toml`. Set `subgraphNetwork` to the chain's Goldsky network name
+   if Goldsky supports it, or `null` if it does not; unsupported chains are not indexed.
+3. Deploy with the same `.env` as the rest of its environment, then run steps 4 to 9.
 
 ## Troubleshooting
 

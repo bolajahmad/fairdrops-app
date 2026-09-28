@@ -1,12 +1,6 @@
 import { z } from "zod";
 import { chainSchema, deploymentEnvironmentSchema } from "./chains.js";
-
-export const addressSchema = z
-  .string()
-  .regex(/^0x[0-9a-fA-F]{40}$/, "Expected a 20-byte hex address");
-export const bytes32Schema = z
-  .string()
-  .regex(/^0x[0-9a-fA-F]{64}$/, "Expected a 32-byte hex value");
+import { addressSchema, bytes32Schema } from "./primitives.js";
 
 export const contractNameSchema = z.enum(["FairDrops"]);
 export type ContractName = z.infer<typeof contractNameSchema>;

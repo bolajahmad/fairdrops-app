@@ -13,11 +13,14 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
+    "@fairdrops/contracts": "workspace:*",
+    "@fairdrops/db": "workspace:*",
     "@fairdrops/shared": "workspace:*",
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
+    "viem": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

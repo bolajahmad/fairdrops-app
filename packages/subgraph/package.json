@@ -1,0 +1,30 @@
+{
+  "name": "@fairdrops/subgraph",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "codegen": "node scripts/subgraph.ts codegen",
+    "build": "node scripts/subgraph.ts build",
+    "test": "node scripts/subgraph.ts test",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "subgraph:deploy": "node scripts/subgraph.ts deploy",
+    "subgraph:promote": "node scripts/subgraph.ts promote",
+    "clean": "rm -rf build generated tests/.bin tests/.latest.json subgraph.*.yaml .turbo"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-ts": "catalog:"
+  },
+  "devDependencies": {
+    "@fairdrops/config": "workspace:*",
+    "@fairdrops/contracts": "workspace:*",
+    "@fairdrops/shared": "workspace:*",
+    "@graphprotocol/graph-cli": "catalog:",
+    "@types/node": "catalog:",
+    "assemblyscript": "catalog:",
+    "eslint": "catalog:",
+    "matchstick-as": "catalog:",
+    "typescript": "catalog:"
+  }
+}

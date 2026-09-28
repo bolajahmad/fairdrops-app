@@ -3,29 +3,43 @@ packages:
   - packages/*
 
 allowBuilds:
+  "@prisma/engines": true
   "@swc/core": true
+  prisma: true
   unrs-resolver: true
   pnpm: true
 
 catalog:
   "@eslint/js": 9.39.5
+  "@graphprotocol/graph-cli": 0.98.1
+  "@graphprotocol/graph-ts": 0.38.2
   "@nestjs/cli": 12.0.6
   "@nestjs/common": 12.1.0
   "@nestjs/core": 12.1.0
   "@nestjs/platform-express": 12.1.0
   "@nestjs/testing": 12.1.0
   "@openzeppelin/contracts": 5.6.1
+  "@prisma/adapter-pg": 7.10.0
+  "@prisma/client": 7.10.0
   "@swc/core": 1.16.2
+  "@types/express": 5.0.6
   "@types/node": 24.13.6
+  "@types/pg": 8.23.1
   "@types/react": 19.3.0
   "@types/react-dom": 19.3.0
   "@types/supertest": 7.2.1
+  assemblyscript: 0.19.23
   eslint: 9.39.5
   eslint-config-next: 16.3.6
   forge-std: github:foundry-rs/forge-std#v1.16.2
   globals: 17.12.0
+  ioredis: 6.0.0
+  jose: 6.2.12
+  matchstick-as: 0.6.0
   next: 16.3.6
+  pg: 8.23.0
   prettier: 3.9.9
+  prisma: 7.10.0
   react: 19.3.0
   react-dom: 19.3.0
   reflect-metadata: 0.2.2
@@ -35,6 +49,7 @@ catalog:
   typescript: 6.0.3
   typescript-eslint: 8.70.1
   unplugin-swc: 2.0.0
+  viem: 2.56.8
   vitest: 5.0.1
   zod: 4.6.5
 

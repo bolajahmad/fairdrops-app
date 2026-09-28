@@ -17,6 +17,25 @@ jobs:
     name: Format, lint, typecheck, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: fairdrops
+          POSTGRES_PASSWORD: fairdrops
+          POSTGRES_DB: fairdrops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fairdrops -d fairdrops"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
     steps:
       - uses: actions/checkout@v7
 

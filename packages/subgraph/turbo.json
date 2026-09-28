@@ -1,0 +1,25 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "inputs": [
+        "schema.graphql",
+        "subgraph.template.yaml",
+        "src/**",
+        "scripts/**",
+        "../contracts/abi/**"
+      ],
+      "outputs": ["build/**", "generated/**"]
+    },
+    "test": {
+      "inputs": [
+        "schema.graphql",
+        "subgraph.template.yaml",
+        "src/**",
+        "tests/**",
+        "../contracts/abi/**"
+      ]
+    }
+  }
+}

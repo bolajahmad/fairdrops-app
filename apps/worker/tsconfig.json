@@ -1,4 +1,4 @@
 {
   "extends": "@fairdrops/config/tsconfig/nest.json",
-  "include": ["src", "vitest.config.ts"]
+  "include": ["src", "test", "vitest.config.ts"]
 }
