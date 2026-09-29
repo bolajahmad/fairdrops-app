@@ -16,6 +16,7 @@
     "@fairdrops/contracts": "workspace:*",
     "@fairdrops/db": "workspace:*",
     "@fairdrops/game-kit": "workspace:*",
+    "@fairdrops/settlement": "workspace:*",
     "@fairdrops/shared": "workspace:*",
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",

@@ -122,6 +122,12 @@ sync with the Solidity sources; see [contracts.md](contracts.md#abi-synchronizat
 
 ## Local infrastructure
 
-`infra/compose.yaml` runs Postgres 17, Redis 8 and Anvil. Defaults match `.env.example`; override
-any port or credential through the shell environment. `pnpm infra:up` waits for all health checks
-to pass.
+`infra/compose.yaml` runs Postgres 17 and Redis 8. Defaults match `.env.example`; override any
+port or credential through the shell environment. `pnpm infra:up` waits for all health checks to
+pass.
+
+The API, worker, SDK and end-to-end tests talk to **testnets**, never to a local chain: unit and
+integration tests replace the chain with fakes, and the end-to-end suite runs on real testnets
+(see [settlement.md](settlement.md#end-to-end-on-testnet)). Anvil is only for contract tooling,
+such as forge scripts and `cast`, and sits behind the `contracts` compose profile:
+`pnpm infra:contracts` starts it and `pnpm infra:down` stops everything.

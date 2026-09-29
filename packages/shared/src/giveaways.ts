@@ -34,9 +34,82 @@ export const giveawayMetadataV1Schema = z.strictObject({
 });
 export type GiveawayMetadataV1 = z.infer<typeof giveawayMetadataV1Schema>;
 
+export const BPS_DENOMINATOR = 10_000;
+
+/**
+ * Only players scoring at least this much can win. The default of 1 keeps players who joined but
+ * never played out of the payouts.
+ */
+const minScoreSchema = z.number().int().default(1);
+
+/**
+ * How the prize is split between the ranking's best players. It is part of the metadata the host
+ * commits on-chain, so verifiers cannot choose the split. Each paid place has a fixed share of
+ * the prize; places nobody fills (too few qualifying players) and rounding dust stay with the
+ * host, who withdraws them after finalization.
+ *
+ * - `equal`: each of the top `winners` places gets `prize / winners`.
+ * - `weighted`: place `i` gets `bps[i] / 10000` of the prize; the shares sum to 10000.
+ */
+export const rewardPolicySchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("equal"),
+    winners: z.number().int().min(1).max(contractLimits.maxWinners),
+    minScore: minScoreSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("weighted"),
+    bps: z
+      .array(z.number().int().min(1).max(BPS_DENOMINATOR))
+      .min(1)
+      .max(1_000)
+      .refine(
+        (bps) => bps.reduce((sum, share) => sum + share, 0) === BPS_DENOMINATOR,
+        `Shares must sum to ${BPS_DENOMINATOR}`,
+      ),
+    minScore: minScoreSchema,
+  }),
+]);
+export type RewardPolicy = z.infer<typeof rewardPolicySchema>;
+export type RewardPolicyInput = z.input<typeof rewardPolicySchema>;
+
+/** Metadata v2 adds the reward policy. Everything else is as in v1. */
+export const giveawayMetadataV2Schema = giveawayMetadataV1Schema.extend({
+  v: z.literal(2),
+  rewards: rewardPolicySchema,
+});
+export type GiveawayMetadataV2 = z.infer<typeof giveawayMetadataV2Schema>;
+
 /** Every metadata version the indexer understands, keyed by `v`. */
-export const giveawayMetadataSchema = z.discriminatedUnion("v", [giveawayMetadataV1Schema]);
+export const giveawayMetadataSchema = z.discriminatedUnion("v", [
+  giveawayMetadataV1Schema,
+  giveawayMetadataV2Schema,
+]);
 export type GiveawayMetadata = z.infer<typeof giveawayMetadataSchema>;
+export type GiveawayMetadataInput = z.input<typeof giveawayMetadataSchema>;
+
+/** Number of paid places a policy has. */
+export function rewardPlaces(policy: RewardPolicy): number {
+  return policy.kind === "equal" ? policy.winners : policy.bps.length;
+}
+
+/**
+ * The policy a giveaway pays out with. v1 metadata predates policies and splits the prize
+ * equally between the top `maxWinners` players who scored.
+ */
+export function rewardPolicyOf(metadata: GiveawayMetadata, maxWinners: number): RewardPolicy {
+  if (metadata.v === 2) return metadata.rewards;
+  return { kind: "equal", winners: maxWinners, minScore: 1 };
+}
+
+/** Why a policy cannot be settled by a giveaway with this many winners, or null. */
+export function rewardPolicyProblem(policy: RewardPolicy, maxWinners: number): string | null {
+  const places = rewardPlaces(policy);
+  if (places > maxWinners) {
+    return `The reward policy pays ${places} places but the giveaway allows ${maxWinners} winners`;
+  }
+  return null;
+}
 
 /**
  * Serializes JSON canonically (RFC 8785): object keys sorted by UTF-16 code unit, no whitespace,
@@ -76,8 +149,8 @@ export class MetadataTooLargeError extends Error {
   }
 }
 
-/** Validates the document and returns the exact bytes to put on-chain. */
-export function encodeGiveawayMetadata(metadata: GiveawayMetadata): EncodedMetadata {
+/** Validates the document, applies defaults and returns the exact bytes to put on-chain. */
+export function encodeGiveawayMetadata(metadata: GiveawayMetadataInput): EncodedMetadata {
   const json = canonicalJson(giveawayMetadataSchema.parse(metadata));
   const bytes = new TextEncoder().encode(json);
   if (bytes.length > contractLimits.maxMetadataBytes) throw new MetadataTooLargeError(bytes.length);

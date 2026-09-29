@@ -66,12 +66,13 @@ an environment, and change `FAIRDROPS_SALT` when you intentionally want a fresh 
 
 ## Local (Anvil)
 
-For development against the API and web app. Nothing from this environment is committed.
+For contract development: forge scripts, `cast` and trying the deploy flow. The API, worker, SDK
+and web app target testnets, so nothing from this environment is committed.
 
-1. Start Anvil, either standalone or with the rest of the local stack:
+1. Start Anvil, either standalone or through the `contracts` compose profile:
 
    ```bash
-   anvil                 # or: pnpm infra:up
+   anvil                 # or: pnpm infra:contracts
    ```
 
 2. Deploy with Anvil's first development account. The key below is Anvil's public test key and

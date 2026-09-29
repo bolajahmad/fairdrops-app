@@ -5,6 +5,9 @@ import {
   decodeGiveawayMetadata,
   deriveGiveawayPhase,
   encodeGiveawayMetadata,
+  rewardPolicyOf,
+  rewardPolicyProblem,
+  rewardPolicySchema,
   type GiveawayMetadata,
   type PhaseInput,
 } from "./giveaways.js";
@@ -103,5 +106,36 @@ describe("deriveGiveawayPhase", () => {
     expect(deriveGiveawayPhase(finalized, at("2026-11-01T00:00:01Z"))).toBe("closed");
     expect(deriveGiveawayPhase({ ...base, status: "CANCELLED" })).toBe("cancelled");
     expect(deriveGiveawayPhase({ ...base, status: "EXPIRED" })).toBe("expired");
+  });
+});
+
+describe("reward policies", () => {
+  it("round-trips v2 metadata and fills in the default minimum score", () => {
+    const v2 = { ...metadata, v: 2 as const, rewards: { kind: "equal" as const, winners: 2 } };
+    const decoded = decodeGiveawayMetadata(encodeGiveawayMetadata(v2).hex);
+    expect(decoded).toEqual({
+      ok: true,
+      metadata: { ...v2, rewards: { kind: "equal", winners: 2, minScore: 1 } },
+    });
+  });
+
+  it("requires weighted shares to sum to 10000", () => {
+    expect(rewardPolicySchema.safeParse({ kind: "weighted", bps: [6000, 4000] }).success).toBe(
+      true,
+    );
+    expect(rewardPolicySchema.safeParse({ kind: "weighted", bps: [6000, 3000] }).success).toBe(
+      false,
+    );
+    expect(rewardPolicySchema.safeParse({ kind: "weighted", bps: [10000, 0] }).success).toBe(false);
+  });
+
+  it("gives v1 giveaways an equal split between maxWinners places", () => {
+    expect(rewardPolicyOf(metadata, 3)).toEqual({ kind: "equal", winners: 3, minScore: 1 });
+  });
+
+  it("refuses policies with more places than the giveaway has winners", () => {
+    const policy = rewardPolicySchema.parse({ kind: "weighted", bps: [5000, 3000, 2000] });
+    expect(rewardPolicyProblem(policy, 3)).toBeNull();
+    expect(rewardPolicyProblem(policy, 2)).toMatch(/pays 3 places/);
   });
 });

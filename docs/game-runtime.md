@@ -3,8 +3,7 @@
 Every giveaway is decided by a game. The host picks the game and its settings when creating the
 giveaway, and they are part of the metadata committed on-chain, so they cannot change once the
 prize is escrowed. FairDrops plays the game as a **session**, publishes a **transcript** of
-everything that happened, and settles the result on-chain (the settlement itself is the next
-phase).
+everything that happened, and settles the result on-chain ([settlement.md](settlement.md)).
 
 There are two kinds of game:
 
@@ -101,8 +100,10 @@ stateDiagram-v2
     RUNNING --> SETTLING: hosted: game's duration ends\nexternal: score report arrives
     RUNNING --> FAILED: (external): no report before endsAt
 
-    SETTLING --> FINALIZING: (phase 5)
-    FINALIZING --> FINALIZED
+    SETTLING --> FINALIZING: finalize sent
+    FINALIZING --> FINALIZED: result indexed on-chain
+    SETTLING --> FAILED: nobody qualified,\nor it cannot be finalized
+    FINALIZING --> FAILED: deadline passed
 
     CANCELLED --> [*]
     FAILED --> [*]
@@ -120,6 +121,7 @@ stateDiagram-v2
 | `RUNNING` -> `SETTLING` (external)  | Planner, once a valid score report is stored                                                                                                                      |
 | `RUNNING` -> `FAILED` (external)    | Planner, if no report arrives before `endsAt`                                                                                                                     |
 | any open status -> `CANCELLED`      | Planner, when the giveaway is cancelled or expires on-chain                                                                                                       |
+| `SETTLING` onwards                  | The settlement pipeline; see [settlement.md](settlement.md)                                                                                                       |
 
 Every transition is an `UPDATE ... WHERE status = <expected>`. A planner tick, a queued job and
 a runtime that race over one session cannot both apply a change; the loser updates no rows.

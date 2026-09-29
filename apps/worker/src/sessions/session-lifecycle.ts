@@ -53,6 +53,16 @@ export class SessionLifecycle {
     return this.move(sessionId, from, "CANCELLED", { failureReason: reason });
   }
 
+  /** The finalize transaction for the session's result was broadcast. */
+  async finalizing(sessionId: string): Promise<boolean> {
+    return this.move(sessionId, ["SETTLING"], "FINALIZING");
+  }
+
+  /** The chain recorded the session's result; winners can claim. */
+  async finalized(sessionId: string): Promise<boolean> {
+    return this.move(sessionId, ["SETTLING", "FINALIZING"], "FINALIZED");
+  }
+
   /**
    * Starts play at the scheduled time. The session row is locked for the decision, and joining
    * takes a share lock on it, so no one can join between counting the players and starting.

@@ -28,7 +28,8 @@ const JOINABLE: SessionStatus[] = [...JOINABLE_SESSION_STATUSES];
 const ENDED: SessionStatus[] = [...ENDED_SESSION_STATUSES];
 
 function toView(session: GameSession, playerCount: number): SessionView {
-  const ended = ENDED.includes(session.status);
+  // The result is public once the game is over, including when settling it then failed.
+  const ended = ENDED.includes(session.status) || session.seed !== null;
   return {
     id: session.id,
     chainId: session.chainId,

@@ -1,0 +1,62 @@
+{
+  "name": "@fairdrops/sdk",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Client for FairDrops: sign in, play, host, claim and verify giveaways.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./live": {
+      "types": "./dist/live.d.ts",
+      "default": "./dist/live.js"
+    },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "default": "./dist/host.js"
+    },
+    "./claims": {
+      "types": "./dist/claims.d.ts",
+      "default": "./dist/claims.js"
+    },
+    "./verify": {
+      "types": "./dist/verify.d.ts",
+      "default": "./dist/verify.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@fairdrops/contracts": "workspace:*",
+    "@fairdrops/game-kit": "workspace:*",
+    "@fairdrops/settlement": "workspace:*",
+    "@fairdrops/shared": "workspace:*",
+    "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "viem": "catalog:"
+  },
+  "devDependencies": {
+    "@fairdrops/config": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "viem": "catalog:",
+    "vitest": "catalog:"
+  }
+}

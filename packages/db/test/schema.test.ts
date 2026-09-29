@@ -4,6 +4,7 @@ import {
   giveawayEventKindSchema,
   onchainStatusSchema,
   sessionStatusSchema,
+  settlementStatusSchema,
   socialPlatformSchema,
   walletConnectorSchema,
   walletKindSchema,
@@ -15,6 +16,7 @@ import {
   GiveawayEventKind,
   OnchainStatus,
   SessionStatus,
+  SettlementStatus,
   SocialPlatform,
   WalletConnector,
   WalletKind,
@@ -44,6 +46,7 @@ describe("database enums", () => {
     ["OnchainStatus", OnchainStatus, onchainStatusSchema.options],
     ["GiveawayEventKind", GiveawayEventKind, giveawayEventKindSchema.options],
     ["SessionStatus", SessionStatus, sessionStatusSchema.options],
+    ["SettlementStatus", SettlementStatus, settlementStatusSchema.options],
   ] as const)("%s matches @fairdrops/shared", (_name, prismaEnum, sharedValues) => {
     expect(Object.values(prismaEnum).sort()).toEqual([...sharedValues].sort());
   });
@@ -226,7 +229,7 @@ describe("session invariants", () => {
     await expect(prisma.gameSession.create({ data: session })).rejects.toThrow(/Unique constraint/);
   });
 
-  it("requires the result, seed and end time exactly once the game is over", async () => {
+  it("requires the result, seed and end time once the game is over", async () => {
     await giveaway();
     const created = await prisma.gameSession.create({
       data: { ...session, status: "RUNNING", startedAt: new Date() },
@@ -234,6 +237,17 @@ describe("session invariants", () => {
     await expect(
       prisma.gameSession.update({ where: { id: created.id }, data: { status: "SETTLING" } }),
     ).rejects.toThrow(/game_sessions_result/);
+
+    // A settled game whose settlement then fails keeps its result.
+    const result = { ranking: [], transcriptHash: hash("d"), seed: hash("e"), endedAt: new Date() };
+    await prisma.gameSession.update({
+      where: { id: created.id },
+      data: { status: "SETTLING", ...result },
+    });
+    await prisma.gameSession.update({
+      where: { id: created.id },
+      data: { status: "FAILED", failureReason: "Nobody qualified" },
+    });
   });
 
   it("only lets failed sessions have an unknown game, and requires a reason", async () => {
@@ -244,5 +258,48 @@ describe("session invariants", () => {
     await expect(
       prisma.gameSession.create({ data: { ...session, mode: null, status: "FAILED" } }),
     ).rejects.toThrow(/game_sessions_failure_reason/);
+  });
+});
+
+describe("settlement constraints", () => {
+  const tx = {
+    chainId: 84532,
+    sender: `0x${"1".repeat(40)}`,
+    kind: "FINALIZE" as const,
+    to: `0x${"2".repeat(40)}`,
+    data: "0x",
+    gasLimit: "21000",
+    maxFeePerGas: "2",
+    maxPriorityFeePerGas: "1",
+    raw: "0x02",
+    hashes: [`0x${"3".repeat(64)}`],
+  };
+
+  it("keeps one transaction per nonce, except for ones that never used it", async () => {
+    await prisma.chainTransaction.create({
+      data: { ...tx, nonce: 7, ref: "a", status: "FAILED", error: "refused" },
+    });
+    await prisma.chainTransaction.create({ data: { ...tx, nonce: 7, ref: "b" } });
+    await expect(
+      prisma.chainTransaction.create({ data: { ...tx, nonce: 7, ref: "c" } }),
+    ).rejects.toThrow(/Unique constraint/);
+  });
+
+  it("allows one transaction in flight per intent", async () => {
+    await prisma.chainTransaction.create({ data: { ...tx, nonce: 1, ref: "session" } });
+    await expect(
+      prisma.chainTransaction.create({ data: { ...tx, nonce: 2, ref: "session" } }),
+    ).rejects.toThrow(/Unique constraint/);
+    await prisma.chainTransaction.updateMany({
+      where: { ref: "session" },
+      data: { status: "REVERTED", minedHash: tx.hashes[0], blockNumber: 5n },
+    });
+    await prisma.chainTransaction.create({ data: { ...tx, nonce: 2, ref: "session" } });
+  });
+
+  it("requires either legacy or EIP-1559 fees, not both", async () => {
+    await expect(
+      prisma.chainTransaction.create({ data: { ...tx, nonce: 3, ref: "d", gasPrice: "5" } }),
+    ).rejects.toThrow(/chain_transactions_fees/);
   });
 });

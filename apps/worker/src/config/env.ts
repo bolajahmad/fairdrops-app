@@ -21,6 +21,40 @@ const endpointMap = z
     return endpoints;
   });
 
+/** `84532=https://a,84532=https://b,10143=https://c`: RPC URLs per chain, tried in order. */
+const rpcUrlMap = z
+  .string()
+  .default("")
+  .transform((value, ctx) => {
+    const urls = new Map<number, string[]>();
+    for (const entry of value.split(",").map((item) => item.trim())) {
+      if (!entry) continue;
+      const match = /^(\d+)=(https?:\/\/\S+)$/.exec(entry);
+      if (!match) {
+        ctx.addIssue({ code: "custom", message: `Expected chainId=url, got "${entry}"` });
+        return z.NEVER;
+      }
+      const chainId = Number(match[1]);
+      urls.set(chainId, [...(urls.get(chainId) ?? []), match[2]!]);
+    }
+    return urls;
+  });
+
+const privateKey = z
+  .string()
+  .regex(/^(0x)?[0-9a-fA-F]{64}$/, "Expected a 32-byte private key as hex");
+
+const privateKeyList = z
+  .string()
+  .default("")
+  .transform((value) =>
+    value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+  )
+  .pipe(z.array(privateKey));
+
 const chainIdList = z
   .string()
   .default("")
@@ -73,10 +107,7 @@ const envSchema = z
       .regex(/^(0x)?[0-9a-fA-F]{64}$/, "Expected 32 bytes as hex")
       .optional(),
     /** Holds OPERATOR_ROLE on the FairDrops contracts and commits session seeds. */
-    OPERATOR_PRIVATE_KEY: z
-      .string()
-      .regex(/^(0x)?[0-9a-fA-F]{64}$/, "Expected a 32-byte private key as hex")
-      .optional(),
+    OPERATOR_PRIVATE_KEY: privateKey.optional(),
     /** How often the planner creates sessions and reconciles their status. */
     SESSION_PLANNER_INTERVAL_MS: z.coerce.number().int().min(100).max(60_000).default(2_000),
     /** Time kept free between the end of play and the giveaway's finalize deadline. */
@@ -87,6 +118,38 @@ const envSchema = z
     SESSION_MAX_OWNED: z.coerce.number().int().min(1).max(10_000).default(50),
     /** How long a worker's hold on a running game lasts without renewal. */
     SESSION_LEASE_MS: z.coerce.number().int().min(500).max(60_000).default(10_000),
+
+    /** Extra RPC endpoints per chain, tried before the registry's public ones. */
+    RPC_URLS: rpcUrlMap,
+
+    /** Build, sign, submit and confirm settlements, relay claims and unwind failed games. */
+    SETTLEMENT_ENABLED: booleanString.default(true),
+    /** How often the settlement reconciler looks for work. */
+    SETTLEMENT_INTERVAL_MS: z.coerce.number().int().min(100).max(60_000).default(3_000),
+    /**
+     * Keys holding VERIFIER_ROLE, comma-separated. A worker with keys checks every proposed
+     * settlement independently and signs the ones that hold up. Run verifiers as separate
+     * processes (SESSIONS_ENABLED, INDEXER_ENABLED and SETTLEMENT_ENABLED off) to spread trust.
+     */
+    VERIFIER_PRIVATE_KEYS: privateKeyList,
+    /** Pays for finalize and relayed claims. Defaults to the operator key. */
+    RELAYER_PRIVATE_KEY: privateKey.optional(),
+    /** Claim prizes on winners' behalf after finalization, so winners need no gas. */
+    CLAIM_RELAY_ENABLED: booleanString.default(true),
+    /** Claims per claimMany transaction. */
+    CLAIM_BATCH_SIZE: z.coerce.number().int().min(1).max(200).default(25),
+    /** Cancel on-chain the giveaways of games that failed or were cancelled, so hosts get refunds. */
+    UNWIND_ENABLED: booleanString.default(true),
+    /** How long to wait for a transaction before looking again on the next pass. */
+    TX_RECEIPT_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(90_000),
+    /** Rebroadcast with higher fees when a transaction has not been mined for this long. */
+    TX_BUMP_AFTER_MS: z.coerce.number().int().min(5_000).max(3_600_000).default(60_000),
+    TX_MAX_FEE_BUMPS: z.coerce.number().int().min(0).max(20).default(5),
+    /** Warn when a signing key's balance on a chain falls below this, in wei. */
+    LOW_BALANCE_WEI: z.coerce
+      .bigint()
+      .nonnegative()
+      .default(10n ** 16n),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === "production" && env.SESSIONS_ENABLED && !env.SESSION_SEED_KEY) {

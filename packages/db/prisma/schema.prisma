@@ -371,6 +371,7 @@ model GameSession {
   actions      SessionAction[]
   scoreReport  ScoreReport?
   transcript   SessionTranscript?
+  settlement   Settlement?
 
   @@unique([chainId, giveawayId])
   @@index([status, startsAt])
@@ -455,4 +456,143 @@ model GameResource {
 
   @@index([kind])
   @@map("game_resources")
+}
+
+// Settlement
+//
+// The payouts of a finished game, the verifier signatures over them, and the transactions that
+// put them on-chain. See docs/settlement.md.
+
+enum SettlementStatus {
+  PROPOSED
+  SIGNED
+  SUBMITTED
+  CONFIRMED
+  ABANDONED
+}
+
+/// What a session's giveaway pays out, computed from the ranking and the host's reward policy.
+model Settlement {
+  sessionId      String           @id @map("session_id") @db.Uuid
+  chainId        Int              @map("chain_id")
+  giveawayId     String           @map("giveaway_id") @db.Char(66)
+  status         SettlementStatus @default(PROPOSED)
+  /// The reward policy applied, with defaults filled in.
+  policy         Json
+  /// The escrowed prize the shares were taken from.
+  prize          Decimal          @db.Decimal(78, 0)
+  payoutRoot     String           @map("payout_root") @db.Char(66)
+  totalPayout    Decimal          @map("total_payout") @db.Decimal(78, 0)
+  winnerCount    Int              @map("winner_count")
+  seed           String           @db.Char(66)
+  transcriptHash String           @map("transcript_hash") @db.Char(66)
+  /// EIP-712 digest verifiers sign; equals the contract's settlementDigest.
+  digest         String           @db.Char(66)
+  /// The payout tree in OpenZeppelin StandardMerkleTree dump format.
+  tree           Json
+  finalizeTxId   String?          @unique @map("finalize_tx_id") @db.Uuid
+  failureReason  String?          @map("failure_reason")
+  confirmedAt    DateTime?        @map("confirmed_at") @db.Timestamptz(3)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  session    GameSession           @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  finalizeTx ChainTransaction?     @relation(fields: [finalizeTxId], references: [id], onDelete: Restrict)
+  payouts    SettlementPayout[]
+  signatures SettlementSignature[]
+
+  @@unique([chainId, giveawayId])
+  @@index([status])
+  @@map("settlements")
+}
+
+model SettlementPayout {
+  sessionId String    @map("session_id") @db.Uuid
+  account   String    @db.Char(42)
+  amount    Decimal   @db.Decimal(78, 0)
+  rank      Int
+  /// Merkle proof for claim(id, account, amount, proof).
+  proof     String[]
+  /// Set from the indexed Claimed event.
+  claimedAt DateTime? @map("claimed_at") @db.Timestamptz(3)
+  claimTx   String?   @map("claim_tx") @db.Char(66)
+
+  settlement Settlement @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+
+  @@id([sessionId, account])
+  @@index([account])
+  @@map("settlement_payouts")
+}
+
+model SettlementSignature {
+  sessionId String   @map("session_id") @db.Uuid
+  verifier  String   @db.Char(42)
+  signature String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  settlement Settlement @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+
+  @@id([sessionId, verifier])
+  @@map("settlement_signatures")
+}
+
+// Transactions
+//
+// Every transaction the worker sends, recorded before it is broadcast, so a crash can never lose
+// track of a nonce. See "Transactions" in docs/settlement.md.
+
+enum ChainTxKind {
+  COMMIT_SEED
+  FINALIZE
+  CLAIM
+  CANCEL
+}
+
+/// SIGNED: recorded, not yet accepted by a node. SENT: in a mempool. MINED: included and
+/// succeeded. REVERTED: included and failed. FAILED: never broadcast (the node refused it), so
+/// its nonce was not used. DROPPED: another transaction took its nonce.
+enum ChainTxStatus {
+  SIGNED
+  SENT
+  MINED
+  REVERTED
+  FAILED
+  DROPPED
+}
+
+model ChainTransaction {
+  id                   String        @id @default(uuid(7)) @db.Uuid
+  chainId              Int           @map("chain_id")
+  sender               String        @db.Char(42)
+  nonce                Int
+  kind                 ChainTxKind
+  /// What the transaction is for, e.g. the session id; with kind, identifies the intent.
+  ref                  String
+  to                   String        @db.Char(42)
+  data                 String
+  value                Decimal       @default(0) @db.Decimal(78, 0)
+  gasLimit             Decimal       @map("gas_limit") @db.Decimal(78, 0)
+  maxFeePerGas         Decimal?      @map("max_fee_per_gas") @db.Decimal(78, 0)
+  maxPriorityFeePerGas Decimal?      @map("max_priority_fee_per_gas") @db.Decimal(78, 0)
+  gasPrice             Decimal?      @map("gas_price") @db.Decimal(78, 0)
+  /// The latest signed transaction, rebroadcast as-is after a crash.
+  raw                  String
+  /// Every hash broadcast for this nonce, the latest last. Fee bumps add one.
+  hashes               String[]
+  status               ChainTxStatus @default(SIGNED)
+  /// The hash that was included, once mined or reverted.
+  minedHash            String?       @map("mined_hash") @db.Char(66)
+  blockNumber          BigInt?       @map("block_number")
+  error                String?
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  sentAt               DateTime?     @map("sent_at") @db.Timestamptz(3)
+  settledAt            DateTime?     @map("settled_at") @db.Timestamptz(3)
+  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  settlement Settlement?
+
+  @@index([chainId, sender, nonce])
+  @@index([status])
+  @@index([kind, ref])
+  @@map("chain_transactions")
 }

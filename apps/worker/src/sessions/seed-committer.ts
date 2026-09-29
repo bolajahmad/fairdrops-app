@@ -1,20 +1,14 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { fairDropsAbi } from "@fairdrops/contracts";
-import { findChain, type Address, type Hex } from "@fairdrops/shared";
-import {
-  createPublicClient,
-  createWalletClient,
-  defineChain,
-  http,
-  type Chain,
-  type PrivateKeyAccount,
-} from "viem";
-import { nonceManager, privateKeyToAccount } from "viem/accounts";
+import type { Address, Hex } from "@fairdrops/shared";
+import { encodeFunctionData } from "viem";
+import { Keyring } from "../chain/keyring.js";
+import { FAIRDROPS_READER, type FairDropsReader } from "../chain/reader.js";
+import { decodeRevert } from "../chain/rpc.js";
+import { TxEngine } from "../chain/tx-engine.js";
 import { WORKER_ENV, type WorkerEnv } from "../config/env.js";
 
 const ZERO_HASH = `0x${"0".repeat(64)}`;
-const RPC_TIMEOUT_MS = 15_000;
-const RECEIPT_TIMEOUT_MS = 180_000;
 
 export interface SeedCommitRequest {
   chainId: number;
@@ -42,20 +36,21 @@ export class SeedCommitConflict extends Error {
   }
 }
 
+/**
+ * Commits through the transaction engine, so the commit is recorded before it is broadcast and a
+ * retry after a crash follows the transaction already sent instead of sending another.
+ */
 @Injectable()
 export class OnchainSeedCommitter implements SeedCommitter {
   private readonly logger = new Logger(OnchainSeedCommitter.name);
-  private readonly account: PrivateKeyAccount | null;
-  private readonly chains = new Map<number, Chain>();
 
-  constructor(@Inject(WORKER_ENV) env: WorkerEnv) {
-    const key = env.OPERATOR_PRIVATE_KEY;
-    // The nonce manager hands out nonces locally, so commits for several sessions queued in the
-    // same process do not reuse one.
-    this.account = key
-      ? privateKeyToAccount(key.startsWith("0x") ? (key as Hex) : `0x${key}`, { nonceManager })
-      : null;
-    if (!this.account && env.SESSIONS_ENABLED) {
+  constructor(
+    @Inject(WORKER_ENV) env: WorkerEnv,
+    @Inject(FAIRDROPS_READER) private readonly reader: FairDropsReader,
+    private readonly engine: TxEngine,
+    keyring: Keyring,
+  ) {
+    if (!keyring.operator && env.SESSIONS_ENABLED) {
       this.logger.warn(
         "OPERATOR_PRIVATE_KEY is not set; seeds cannot be committed, so sessions will fail at the start",
       );
@@ -68,50 +63,43 @@ export class OnchainSeedCommitter implements SeedCommitter {
     giveawayId,
     commitment,
   }: SeedCommitRequest): Promise<Hex | null> {
-    if (!this.account) throw new Error("OPERATOR_PRIVATE_KEY is not set");
-    const chain = this.chain(chainId);
-    const transport = http(undefined, { timeout: RPC_TIMEOUT_MS, retryCount: 2 });
-    const reader = createPublicClient({ chain, transport });
-
-    const onchain = await reader.readContract({
-      address: contract,
-      abi: fairDropsAbi,
-      functionName: "getGiveaway",
-      args: [giveawayId],
-    });
-    if (onchain.seedCommitment === commitment) return null;
+    const onchain = await this.reader.giveaway(chainId, contract, giveawayId);
+    if (onchain.seedCommitment === commitment) {
+      const sent = await this.engine.latest("COMMIT_SEED", `${chainId}:${giveawayId}`);
+      return sent?.status === "MINED" ? (sent.minedHash as Hex) : null;
+    }
     if (onchain.seedCommitment !== ZERO_HASH) {
       throw new SeedCommitConflict(
         `Giveaway ${giveawayId} already has commitment ${onchain.seedCommitment}`,
       );
     }
 
-    const writer = createWalletClient({ account: this.account, chain, transport });
-    const { request } = await reader.simulateContract({
-      account: this.account,
-      address: contract,
-      abi: fairDropsAbi,
-      functionName: "commitSeed",
-      args: [giveawayId, commitment],
-    });
-    const hash = await writer.writeContract(request);
-    const receipt = await reader.waitForTransactionReceipt({ hash, timeout: RECEIPT_TIMEOUT_MS });
-    if (receipt.status !== "success") throw new Error(`commitSeed transaction ${hash} reverted`);
-    return hash;
-  }
+    let tx;
+    try {
+      tx = await this.engine.send({
+        chainId,
+        kind: "COMMIT_SEED",
+        ref: `${chainId}:${giveawayId}`,
+        sender: "operator",
+        to: contract,
+        data: encodeFunctionData({
+          abi: fairDropsAbi,
+          functionName: "commitSeed",
+          args: [giveawayId, commitment],
+        }),
+      });
+    } catch (error) {
+      const revert = decodeRevert(error);
+      if (revert?.errorName === "SeedAlreadyCommitted") {
+        return this.commit({ chainId, contract, giveawayId, commitment });
+      }
+      throw error;
+    }
 
-  private chain(chainId: number): Chain {
-    const existing = this.chains.get(chainId);
-    if (existing) return existing;
-    const entry = findChain(chainId);
-    if (!entry) throw new Error(`Chain ${chainId} is not in the registry`);
-    const chain = defineChain({
-      id: entry.chainId,
-      name: entry.name,
-      nativeCurrency: entry.nativeCurrency,
-      rpcUrls: { default: { http: entry.rpcUrls } },
-    });
-    this.chains.set(chainId, chain);
-    return chain;
+    const settled = await this.engine.waitFor(tx.id);
+    if (settled.status === "MINED") return settled.minedHash as Hex;
+    if (settled.status === "REVERTED") throw new Error(`commitSeed ${settled.minedHash} reverted`);
+    // Still in flight, or dropped: the job retries, following or replacing the transaction.
+    throw new Error(`commitSeed for ${giveawayId} is ${settled.status.toLowerCase()}`);
   }
 }

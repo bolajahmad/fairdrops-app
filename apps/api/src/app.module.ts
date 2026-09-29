@@ -8,6 +8,7 @@ import { RequestContextMiddleware } from "./common/request-context.middleware.js
 import { ConfigModule } from "./config/config.module.js";
 import { ContractsModule } from "./contracts/contracts.module.js";
 import { GamesModule } from "./games/games.module.js";
+import { GiveawaysModule } from "./giveaways/giveaways.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { InfraModule } from "./infra/infra.module.js";
 import { ProfilesModule } from "./profiles/profiles.module.js";
@@ -25,6 +26,7 @@ import { SessionsModule } from "./sessions/sessions.module.js";
     GamesModule,
     ApiKeysModule,
     SessionsModule,
+    GiveawaysModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ErrorFilter }],
 })

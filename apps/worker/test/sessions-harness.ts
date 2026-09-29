@@ -5,6 +5,8 @@ import { hashJson, quizBankSchema, type QuizBank } from "@fairdrops/game-kit";
 import { canonicalJson, sessionKeys, type Address, type Hex } from "@fairdrops/shared";
 import { Redis } from "ioredis";
 import { keccak256, toHex } from "viem";
+import { FAIRDROPS_READER } from "../src/chain/reader.js";
+import { CHAIN_RPC } from "../src/chain/rpc.js";
 import { PRISMA, type Database } from "../src/infra/prisma.module.js";
 import { REDIS } from "../src/infra/redis.module.js";
 import { Lease } from "../src/sessions/lease.js";
@@ -22,6 +24,7 @@ import { SessionPlanner } from "../src/sessions/session-planner.js";
 import { SessionQueues } from "../src/sessions/session-queues.js";
 import { SessionSupervisor } from "../src/sessions/session-supervisor.js";
 import { WorkerModule } from "../src/worker.module.js";
+import { FakeChain } from "./fake-chain.js";
 
 export const CHAIN_ID = 84532;
 export const CONTRACT = "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca" as Address;
@@ -58,6 +61,8 @@ export interface Harness {
   db: Database;
   redis: Redis;
   committer: FakeCommitter;
+  /** The chain behind every RPC and contract read, reset with the rest. */
+  chain: FakeChain;
   planner: SessionPlanner;
   lifecycle: SessionLifecycle;
   queues: SessionQueues;
@@ -69,9 +74,14 @@ export interface Harness {
 
 export async function createHarness(): Promise<Harness> {
   const committer = new FakeCommitter();
+  const chain = new FakeChain(CHAIN_ID, CONTRACT);
   const moduleRef = await Test.createTestingModule({ imports: [WorkerModule] })
     .overrideProvider(SEED_COMMITTER)
     .useValue(committer)
+    .overrideProvider(CHAIN_RPC)
+    .useValue(() => chain)
+    .overrideProvider(FAIRDROPS_READER)
+    .useValue(chain)
     .compile();
   moduleRef.useLogger(false);
   await moduleRef.init();
@@ -82,6 +92,7 @@ export async function createHarness(): Promise<Harness> {
     db,
     redis,
     committer,
+    chain,
     planner: moduleRef.get(SessionPlanner),
     lifecycle: moduleRef.get(SessionLifecycle),
     queues: moduleRef.get(SessionQueues),
@@ -90,6 +101,7 @@ export async function createHarness(): Promise<Harness> {
     async reset() {
       committer.calls = [];
       committer.mode = "ok";
+      chain.reset();
       await resetDatabase(db);
       await redis.flushdb();
     },

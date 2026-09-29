@@ -32,7 +32,10 @@ services:
       timeout: 3s
       retries: 10
 
+  # Contract tooling only (forge scripts, cast). The apps, SDK and end-to-end tests run against
+  # testnets, so `pnpm infra:up` leaves this out; start it with `pnpm infra:contracts`.
   anvil:
+    profiles: ["contracts"]
     image: ghcr.io/foundry-rs/foundry:stable
     restart: unless-stopped
     entrypoint: ["anvil"]

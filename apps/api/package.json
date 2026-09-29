@@ -33,6 +33,8 @@
   },
   "devDependencies": {
     "@fairdrops/config": "workspace:*",
+    "@fairdrops/sdk": "workspace:*",
+    "@fairdrops/settlement": "workspace:*",
     "@nestjs/cli": "catalog:",
     "@nestjs/testing": "catalog:",
     "@types/express": "catalog:",

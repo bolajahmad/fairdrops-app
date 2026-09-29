@@ -1,0 +1,25 @@
+{
+  "name": "@fairdrops/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "End-to-end scenarios against a FairDrops deployment on testnets, driven only through the SDK.",
+  "type": "module",
+  "scripts": {
+    "testnet": "node src/testnet.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "clean": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@fairdrops/contracts": "workspace:*",
+    "@fairdrops/sdk": "workspace:*",
+    "@fairdrops/shared": "workspace:*",
+    "viem": "catalog:"
+  },
+  "devDependencies": {
+    "@fairdrops/config": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -28,6 +28,18 @@ describe("parseWorkerEnv", () => {
     expect(env.SUBGRAPH_ENDPOINTS.get(84532)).toBe("https://x.test/gn");
   });
 
+  it("parses settlement keys and per-chain RPC endpoints", () => {
+    const env = parseWorkerEnv({
+      ...base,
+      VERIFIER_PRIVATE_KEYS: `${"b1".repeat(32)}, 0x${"b2".repeat(32)}`,
+      RPC_URLS: "84532=https://a.test,84532=https://b.test,10143=https://c.test",
+    });
+    expect(env.VERIFIER_PRIVATE_KEYS).toHaveLength(2);
+    expect(env.RPC_URLS.get(84532)).toEqual(["https://a.test", "https://b.test"]);
+    expect(env).toMatchObject({ SETTLEMENT_ENABLED: true, CLAIM_RELAY_ENABLED: true });
+    expect(parseWorkerEnv(base).VERIFIER_PRIVATE_KEYS).toEqual([]);
+  });
+
   it("treats empty values as unset", () => {
     expect(parseWorkerEnv({ ...base, GOLDSKY_PROJECT_ID: "" }).GOLDSKY_PROJECT_ID).toBeUndefined();
   });
@@ -37,6 +49,8 @@ describe("parseWorkerEnv", () => {
     ["INDEXER_CHAIN_IDS", "monad"],
     ["INDEXER_BATCH_SIZE", "5000"],
     ["GOLDSKY_PROJECT_ID", "my project"],
+    ["VERIFIER_PRIVATE_KEYS", "0x1234"],
+    ["RPC_URLS", "84532:https://a.test"],
   ])("rejects a malformed %s", (name, value) => {
     expect(() => parseWorkerEnv({ ...base, [name]: value })).toThrow(name);
   });
