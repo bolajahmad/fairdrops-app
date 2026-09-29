@@ -12,7 +12,8 @@
     "test": "vitest run",
     "clean": "rm -rf dist .turbo",
     "auth:generate-key": "node scripts/generate-signing-key.ts",
-    "games:builtin": "node scripts/builtin-games.ts"
+    "games:builtin": "node scripts/builtin-games.ts",
+    "play": "node scripts/play-session.ts"
   },
   "dependencies": {
     "@fairdrops/contracts": "workspace:*",

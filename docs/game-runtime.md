@@ -15,17 +15,65 @@ There are two kinds of game:
 
 ## Pieces
 
-```
- player UI (ours or a third party's)                         external game server
-   |  REST: sign in, join                                       |  REST + API key:
-   |  WebSocket /ws: subscribe, act                             |  read players, POST score report
-   v                                                            v
- apps/api ---- XADD action ----> Redis stream ----> apps/worker: SessionOwner (one per game)
-   ^  gateway                   fd:session:<id>:actions      |  logs actions + advances cursor
-   |                                                          |  in one Postgres transaction
-   +------ SUBSCRIBE <---- Redis pub/sub <---- PUBLISH views -+
-                                                              |
- apps/worker: SessionPlanner (one leader)   BullMQ: seed commits, starts
+```mermaid
+flowchart TD
+    subgraph Player_UI["player UI (ours or a third party's)"]
+        direction TB
+        A1[REST: sign in, join]
+        A2[WebSocket /ws: subscribe, act]
+    end
+    subgraph External_Server["external game server"]
+        direction TB
+        B1[REST + API key:<br>read players,<br>POST score report]
+    end
+
+    subgraph API["apps/api"]
+        API1
+    end
+
+    subgraph Redis["Redis stream / pub/sub"]
+        RS[XADD action]
+        RV[fd:session:&lt;id&gt;:actions]
+        PUB[PUBLISH views]
+        SUB[SUBSCRIBE]
+    end
+
+    subgraph Worker["apps/worker: SessionOwner<br>(one per game)"]
+        WO[logs actions + advances cursor<br>in one Postgres transaction]
+    end
+
+    subgraph Planner["apps/worker: SessionPlanner (one leader)"]
+        PL[BullMQ: seed commits, starts]
+    end
+
+    %% Player UI interactions
+    A1-->|REST|API1
+    A2-->|WS|API1
+
+    %% External server interaction
+    B1-->|REST|API1
+
+    %% API to Redis
+    API1-->|XADD action|RS
+
+    %% Redis stream to SessionOwner
+    RS-->|stream|WO
+
+    %% Redis pub/sub for gateway
+    SUB-->|SUBSCRIBE|API1
+    PUB-->|PUBLISH views|SUB
+
+    %% SessionOwner publishes views back via Redis
+    WO-->|PUBLISH views|PUB
+
+    %% Redis stream branch showing fd:session:<id>:actions
+    RS-->|fd:session:<id>:actions|RV
+
+    %% Planner for seeds/starts
+    PL
+
+    %% Direct relationship for planner
+    PL---WO
 ```
 
 - **`packages/game-kit`**: the game interface, the two built-in games (quiz and dice), seeded
@@ -36,18 +84,29 @@ There are two kinds of game:
 
 ## Session lifecycle
 
-```
-SCHEDULED --seed committed on-chain--> SEED_COMMITTED --lobby lead--> LOBBY
-    |                                         |                         |
-    |  start time: FAILED if the seed         +-------------+-----------+
-    |  was never committed                                  | start time
-    v                                                       v
-  FAILED                         CANCELLED (nobody joined, or the giveaway ended on-chain)
-                                                    or RUNNING
-                                                          |
-                     hosted: the game's duration ends     |  external: the score report arrives
-                                                          v
-                                                      SETTLING --(phase 5)--> FINALIZING --> FINALIZED
+```mermaid
+stateDiagram-v2
+    [*] --> SCHEDULED
+
+    SCHEDULED --> SEED_COMMITTED: seed committed on-chain
+    SCHEDULED --> FAILED: start time,\nno seed committed
+
+    SEED_COMMITTED --> LOBBY: lobby lead
+    SEED_COMMITTED --> CANCELLED: nobody joined,\nor giveaway ended on-chain
+    SEED_COMMITTED --> FAILED: start time,\nno players
+
+    LOBBY --> RUNNING: start time
+    LOBBY --> CANCELLED: nobody joined,\nor giveaway ended on-chain
+
+    RUNNING --> SETTLING: hosted: game's duration ends\nexternal: score report arrives
+    RUNNING --> FAILED: (external): no report before endsAt
+
+    SETTLING --> FINALIZING: (phase 5)
+    FINALIZING --> FINALIZED
+
+    CANCELLED --> [*]
+    FAILED --> [*]
+    FINALIZED --> [*]
 ```
 
 | Transition                          | Made by                                                                                                                                                           |
@@ -300,3 +359,71 @@ unreadable and they fail.
 - The API's gateway decides which actions reach the stream. The runtime re-checks that each one
   comes from a player and is well-formed, and the transcript lets anyone check the rest.
 - External games are trusted to the extent of their reporter key.
+
+## Playing a game locally
+
+`apps/api/scripts/play-session.ts` plays one hosted game end to end against running processes,
+the way real players would, then checks the result the way anyone could.
+
+**What is real:** the API and worker processes, Postgres, Redis, SIWE sign-in, joining over
+REST, WebSocket tickets, the gateway, the action stream, the worker's planner, supervisor and
+runtime, the pub/sub relay, settling, the transcript and its replay.
+
+**What the script stands in for:** the chain. It inserts the giveaway the indexer would have
+copied from a `GiveawayCreated` event, and a session already in `SEED_COMMITTED` with a seed it
+encrypts with the worker's key, so no testnet, subgraph or operator key is involved. After the
+players join it moves the start time a few seconds ahead, and the worker's planner starts the game
+on its next tick. On-chain seed commits are covered by tests with a fake committer only.
+
+### Running it
+
+Use a separate database and Redis index so development data is untouched. In one terminal:
+
+```bash
+docker exec fairdrops-postgres-1 psql -U fairdrops -d postgres -c "CREATE DATABASE fairdrops_play"
+export DATABASE_URL=postgresql://fairdrops:fairdrops@localhost:5432/fairdrops_play
+export REDIS_URL=redis://localhost:6379/12
+export SESSION_SEED_KEY=$(openssl rand -hex 32)
+pnpm --filter @fairdrops/db db:migrate
+pnpm turbo run build --filter=@fairdrops/api --filter=@fairdrops/worker
+```
+
+Then start one or more API instances and a worker, each in its own terminal with the same
+exports:
+
+```bash
+cd apps/api && API_PORT=3099 node dist/main.js
+cd apps/api && API_PORT=3100 node dist/main.js
+cd apps/worker && INDEXER_ENABLED=false SESSION_PLANNER_INTERVAL_MS=500 node dist/main.js
+```
+
+And play:
+
+```bash
+pnpm --filter @fairdrops/api play --api http://127.0.0.1:3099,http://127.0.0.1:3100 --players 3
+```
+
+It prints each player's accepted and rejected actions, the standings, and five checks: the
+session settled, the revealed seed is the committed one, the transcript hash matches, replaying
+the transcript gives the same standings, and the standings pushed over the socket match REST. It
+exits non-zero if any check fails.
+
+### Scenarios
+
+| To test                             | Do                                                                    |
+| ----------------------------------- | --------------------------------------------------------------------- |
+| Quiz instead of dice                | `--game quiz --questions 5 --accuracy 0.6`                            |
+| Many players                        | `--players 50`                                                        |
+| Players spread over API instances   | several URLs in `--api`; each player's views still arrive via pub/sub |
+| Someone acting without joining      | `--outsider`; expect `NOT_A_PLAYER`                                   |
+| More dice or a longer window        | `--rolls 5 --window 60`                                               |
+| A worker crash mid-game             | `kill -9` the worker during play, start a new one                     |
+| A graceful worker restart           | `kill -TERM` the worker during play, start a new one                  |
+| Two workers sharing games           | start a second worker; one claims each game                           |
+| Redis or an API instance going away | stop it during play and watch what players and the checks report      |
+
+After a crash the new worker waits for the old lease to lapse (`SESSION_LEASE_MS`, 10 s by
+default), then rebuilds the game from the logged actions. Nothing already sent is lost, but
+players see no new public view in that gap: in a quiz, a question that opens and closes entirely
+inside it is never shown. A graceful stop releases the lease at once, so the gap is about a
+second. A shorter `SESSION_LEASE_MS` narrows the crash gap at the cost of more Redis traffic.
