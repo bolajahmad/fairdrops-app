@@ -9,18 +9,19 @@ build. The original code is preserved on `main`; nothing is carried over without
 
 ## Workspace
 
-| Path                 | Package                | Purpose                                                     |
-| -------------------- | ---------------------- | ----------------------------------------------------------- |
-| `apps/api`           | `@fairdrops/api`       | NestJS HTTP API and plain WebSocket gateway                 |
-| `apps/worker`        | `@fairdrops/worker`    | NestJS indexer consumer, scheduler, game runtime, finalizer |
-| `apps/web`           | `@fairdrops/web`       | Next.js frontend                                            |
-| `packages/contracts` | `@fairdrops/contracts` | FairDrops escrow (Foundry), ABI and deployment records      |
-| `packages/db`        | `@fairdrops/db`        | Prisma schema, migrations and client                        |
-| `packages/subgraph`  | `@fairdrops/subgraph`  | Goldsky subgraph indexing FairDrops events on each chain    |
-| `packages/shared`    | `@fairdrops/shared`    | Zod schemas and inferred types shared by every app          |
-| `packages/config`    | `@fairdrops/config`    | TypeScript, ESLint, Prettier and Vitest presets             |
-| `infra/`             | -                      | Local Postgres, Redis and Anvil via Docker Compose          |
-| `docs/legacy/`       | -                      | Reference documentation from the original build             |
+| Path                 | Package                | Purpose                                                      |
+| -------------------- | ---------------------- | ------------------------------------------------------------ |
+| `apps/api`           | `@fairdrops/api`       | NestJS HTTP API and plain WebSocket gateway                  |
+| `apps/worker`        | `@fairdrops/worker`    | NestJS indexer consumer, scheduler, game runtime, finalizer  |
+| `apps/web`           | `@fairdrops/web`       | Next.js frontend                                             |
+| `packages/contracts` | `@fairdrops/contracts` | FairDrops escrow (Foundry), ABI and deployment records       |
+| `packages/db`        | `@fairdrops/db`        | Prisma schema, migrations and client                         |
+| `packages/game-kit`  | `@fairdrops/game-kit`  | Game interface, quiz and dice, seeded RNG, transcript replay |
+| `packages/subgraph`  | `@fairdrops/subgraph`  | Goldsky subgraph indexing FairDrops events on each chain     |
+| `packages/shared`    | `@fairdrops/shared`    | Zod schemas and inferred types shared by every app           |
+| `packages/config`    | `@fairdrops/config`    | TypeScript, ESLint, Prettier and Vitest presets              |
+| `infra/`             | -                      | Local Postgres, Redis and Anvil via Docker Compose           |
+| `docs/legacy/`       | -                      | Reference documentation from the original build              |
 
 ## Requirements
 
@@ -45,25 +46,28 @@ pnpm dev
 
 Tests for `@fairdrops/api`, `@fairdrops/db` and `@fairdrops/worker` run against the local
 Postgres and Redis, so start them with `pnpm infra:up` first. They use separate test databases
-(`fairdrops_test`, and `fairdrops_test_worker` for the worker) and Redis index 15.
+(`fairdrops_test`, and `fairdrops_test_worker` for the worker) and Redis indexes (15 for the API,
+14 for the worker).
 
 ## Scripts
 
-| Command             | Description                                                       |
-| ------------------- | ----------------------------------------------------------------- |
-| `pnpm build`        | Build every package in dependency order                           |
-| `pnpm dev`          | Run all apps in watch mode                                        |
-| `pnpm lint`         | Type-aware ESLint across the workspace                            |
-| `pnpm typecheck`    | `tsc --noEmit` across the workspace                               |
-| `pnpm test`         | Vitest across the workspace                                       |
-| `pnpm format`       | Format with Prettier                                              |
-| `pnpm format:check` | Verify formatting           
-| `pnpm verify`       | Everything CI runs, in one command                                |
-| `pnpm infra:up`     | Start Postgres, Redis and Anvil and wait until healthy            |
-| `pnpm infra:down`   | Stop local infrastructure                                         |
+| Command             | Description                                            |
+| ------------------- | ------------------------------------------------------ |
+| `pnpm build`        | Build every package in dependency order                |
+| `pnpm dev`          | Run all apps in watch mode                             |
+| `pnpm lint`         | Type-aware ESLint across the workspace                 |
+| `pnpm typecheck`    | `tsc --noEmit` across the workspace                    |
+| `pnpm test`         | Vitest across the workspace                            |
+| `pnpm format`       | Format with Prettier                                   |
+| `pnpm format:check` | Verify formatting                                      |
+| `pnpm verify`       | Everything CI runs, in one command                     |
+| `pnpm infra:up`     | Start Postgres, Redis and Anvil and wait until healthy |
+| `pnpm infra:down`   | Stop local infrastructure                              |
 
 Filter any task to a single package with `pnpm turbo run <task> --filter=@fairdrops/api`.
 
 See [docs/development.md](docs/development.md) for workspace conventions, the database and
 authentication, [docs/contracts.md](docs/contracts.md) for the contract design and security
-review, and [docs/deployment.md](docs/deployment.md) for deploying the contracts.
+review, [docs/deployment.md](docs/deployment.md) for deploying the contracts,
+[docs/indexer.md](docs/indexer.md) for indexing, and [docs/game-runtime.md](docs/game-runtime.md)
+for games, sessions and live play.

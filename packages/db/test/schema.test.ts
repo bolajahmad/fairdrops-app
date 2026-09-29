@@ -3,6 +3,7 @@ import {
   gameModeSchema,
   giveawayEventKindSchema,
   onchainStatusSchema,
+  sessionStatusSchema,
   socialPlatformSchema,
   walletConnectorSchema,
   walletKindSchema,
@@ -13,6 +14,7 @@ import {
   GameMode,
   GiveawayEventKind,
   OnchainStatus,
+  SessionStatus,
   SocialPlatform,
   WalletConnector,
   WalletKind,
@@ -41,6 +43,7 @@ describe("database enums", () => {
     ["GameDefinitionStatus", GameDefinitionStatus, gameDefinitionStatusSchema.options],
     ["OnchainStatus", OnchainStatus, onchainStatusSchema.options],
     ["GiveawayEventKind", GiveawayEventKind, giveawayEventKindSchema.options],
+    ["SessionStatus", SessionStatus, sessionStatusSchema.options],
   ] as const)("%s matches @fairdrops/shared", (_name, prismaEnum, sharedValues) => {
     expect(Object.values(prismaEnum).sort()).toEqual([...sharedValues].sort());
   });
@@ -173,5 +176,73 @@ describe("on-chain invariants", () => {
     await expect(
       prisma.giveaway.create({ data: { ...giveaway, metadataError: null } }),
     ).rejects.toThrow(/giveaways_metadata_parsed/);
+  });
+});
+
+describe("session invariants", () => {
+  const hash = (char: string) => `0x${char.repeat(64)}`;
+
+  async function giveaway() {
+    return prisma.giveaway.create({
+      data: {
+        chainId: 84532,
+        giveawayId: hash("2"),
+        contractAddress: "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca",
+        host: "0x00000000000000000000000000000000000000a1",
+        token: "0x0000000000000000000000000000000000000000",
+        prize: "1000",
+        fee: "10",
+        startTime: new Date("2026-10-01T00:00:00Z"),
+        finalizeDeadline: new Date("2026-10-02T00:00:00Z"),
+        maxWinners: 3,
+        claimWindowSeconds: 2_592_000,
+        metadataHash: hash("a"),
+        metadataRaw: new Uint8Array([123, 125]),
+        metadata: {},
+        createdBlock: 1n,
+        createdTxHash: hash("b"),
+        createdAt: new Date("2026-09-28T00:00:00Z"),
+        updatedBlock: 1n,
+      },
+    });
+  }
+
+  const session = {
+    chainId: 84532,
+    giveawayId: hash("2"),
+    gameId: "quiz",
+    gameVersion: "1.0.0",
+    mode: "HOSTED" as const,
+    config: {},
+    seedCiphertext: new Uint8Array(60),
+    seedCommitment: hash("c"),
+    startsAt: new Date("2026-10-01T00:00:00Z"),
+    endsAt: new Date("2026-10-01T00:10:00Z"),
+  };
+
+  it("allows one session per giveaway", async () => {
+    await giveaway();
+    await prisma.gameSession.create({ data: session });
+    await expect(prisma.gameSession.create({ data: session })).rejects.toThrow(/Unique constraint/);
+  });
+
+  it("requires the result, seed and end time exactly once the game is over", async () => {
+    await giveaway();
+    const created = await prisma.gameSession.create({
+      data: { ...session, status: "RUNNING", startedAt: new Date() },
+    });
+    await expect(
+      prisma.gameSession.update({ where: { id: created.id }, data: { status: "SETTLING" } }),
+    ).rejects.toThrow(/game_sessions_result/);
+  });
+
+  it("only lets failed sessions have an unknown game, and requires a reason", async () => {
+    await giveaway();
+    await expect(prisma.gameSession.create({ data: { ...session, mode: null } })).rejects.toThrow(
+      /game_sessions_unknown_game_failed/,
+    );
+    await expect(
+      prisma.gameSession.create({ data: { ...session, mode: null, status: "FAILED" } }),
+    ).rejects.toThrow(/game_sessions_failure_reason/);
   });
 });

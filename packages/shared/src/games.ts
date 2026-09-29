@@ -141,3 +141,22 @@ export const gameDefinitionListQuerySchema = paginationQuerySchema.extend({
   status: gameDefinitionStatusSchema.optional(),
 });
 export type GameDefinitionListQuery = z.infer<typeof gameDefinitionListQuerySchema>;
+
+/**
+ * Private content a game draws on, such as a quiz's question bank, uploaded by an admin and
+ * referenced by hash in a giveaway's settings. It stays private until a game that used it is
+ * over, when its transcript publishes it.
+ */
+export const createGameResourceRequestSchema = z.object({
+  kind: gameIdSchema,
+  content: z.unknown(),
+});
+export type CreateGameResourceRequest = z.infer<typeof createGameResourceRequestSchema>;
+
+export const gameResourceViewSchema = z.object({
+  hash: bytes32Schema,
+  kind: z.string(),
+  summary: z.string(),
+  createdAt: isoDateTimeSchema,
+});
+export type GameResourceView = z.infer<typeof gameResourceViewSchema>;

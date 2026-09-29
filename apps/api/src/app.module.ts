@@ -11,6 +11,7 @@ import { GamesModule } from "./games/games.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { InfraModule } from "./infra/infra.module.js";
 import { ProfilesModule } from "./profiles/profiles.module.js";
+import { SessionsModule } from "./sessions/sessions.module.js";
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ProfilesModule } from "./profiles/profiles.module.js";
     ProfilesModule,
     GamesModule,
     ApiKeysModule,
+    SessionsModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ErrorFilter }],
 })

@@ -32,8 +32,10 @@ model User {
   socials         SocialLink[]
   sessions        AuthSession[]
   apiKeys         ApiKey[]
-  gameDefinitions GameDefinition[] @relation("GameDefinitionOwner")
-  reviewedGames   GameDefinition[] @relation("GameDefinitionReviewer")
+  gameDefinitions GameDefinition[]     @relation("GameDefinitionOwner")
+  reviewedGames   GameDefinition[]     @relation("GameDefinitionReviewer")
+  participations  SessionParticipant[]
+  gameResources   GameResource[]
 
   @@map("users")
 }
@@ -262,7 +264,8 @@ model Giveaway {
   /// Block of the last event applied to this row.
   updatedBlock       BigInt        @map("updated_block")
 
-  events GiveawayEvent[]
+  events  GiveawayEvent[]
+  session GameSession?
 
   @@id([chainId, giveawayId])
   @@index([status, startTime])
@@ -310,4 +313,146 @@ model PayoutWallet {
 
   @@id([chainId, contractAddress, account])
   @@map("payout_wallets")
+}
+
+// Game sessions
+//
+// One session per giveaway: the game played for it. The worker creates and runs sessions; the
+// API lets players join and serves results. See docs/game-runtime.md.
+
+enum SessionStatus {
+  SCHEDULED
+  SEED_COMMITTED
+  LOBBY
+  RUNNING
+  SETTLING
+  FINALIZING
+  FINALIZED
+  CANCELLED
+  FAILED
+}
+
+model GameSession {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  chainId        Int           @map("chain_id")
+  giveawayId     String        @map("giveaway_id") @db.Char(66)
+  gameId         String        @map("game_id")
+  gameVersion    String        @map("game_version")
+  /// Null when the giveaway names a game FairDrops does not know; such sessions have FAILED.
+  mode           GameMode?
+  status         SessionStatus @default(SCHEDULED)
+  failureReason  String?       @map("failure_reason")
+  /// Settings after defaults were applied, exactly as the game receives them.
+  config         Json
+  /// The seed encrypted with SESSION_SEED_KEY (AES-256-GCM: iv, tag, ciphertext).
+  seedCiphertext Bytes         @map("seed_ciphertext")
+  /// keccak256(abi.encode(giveawayId, seed)), committed on-chain before the start.
+  seedCommitment String        @map("seed_commitment") @db.Char(66)
+  seedCommitTx   String?       @map("seed_commit_tx") @db.Char(66)
+  /// The seed in the clear, written when the game is over.
+  seed           String?       @db.Char(66)
+  startsAt       DateTime      @map("starts_at") @db.Timestamptz(3)
+  /// Hosted: when play stops. External: the deadline for the score report.
+  endsAt         DateTime      @map("ends_at") @db.Timestamptz(3)
+  startedAt      DateTime?     @map("started_at") @db.Timestamptz(3)
+  endedAt        DateTime?     @map("ended_at") @db.Timestamptz(3)
+  /// Last action stream entry logged. Advanced only by the runtime holding the session, and
+  /// used as its fencing token.
+  lastStreamId   String        @default("0-0") @map("last_stream_id")
+  actionCount    Int           @default(0) @map("action_count")
+  /// Final standings, best first.
+  ranking        Json?
+  transcriptHash String?       @map("transcript_hash") @db.Char(66)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  giveaway     Giveaway             @relation(fields: [chainId, giveawayId], references: [chainId, giveawayId], onDelete: Restrict)
+  participants SessionParticipant[]
+  actions      SessionAction[]
+  scoreReport  ScoreReport?
+  transcript   SessionTranscript?
+
+  @@unique([chainId, giveawayId])
+  @@index([status, startsAt])
+  @@map("game_sessions")
+}
+
+model SessionParticipant {
+  sessionId String   @map("session_id") @db.Uuid
+  wallet    String   @db.Char(42)
+  userId    String   @map("user_id") @db.Uuid
+  joinedAt  DateTime @default(now()) @map("joined_at") @db.Timestamptz(3)
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@id([sessionId, wallet])
+  @@index([userId])
+  @@map("session_participants")
+}
+
+/// The ordered log of a hosted game's actions: the input its result is replayed from.
+model SessionAction {
+  sessionId String   @map("session_id") @db.Uuid
+  seq       Int
+  player    String   @db.Char(42)
+  /// The id the client chose, so a resent action is only logged once.
+  clientId  String   @map("client_id")
+  /// When the action reached FairDrops (the Redis stream entry time).
+  at        DateTime @db.Timestamptz(3)
+  action    Json
+  accepted  Boolean
+  reason    String?
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, seq])
+  @@unique([sessionId, player, clientId])
+  @@map("session_actions")
+}
+
+/// The published record of a finished game, whose hash is settled on-chain. Written once.
+model SessionTranscript {
+  sessionId String   @id @map("session_id") @db.Uuid
+  hash      String   @db.Char(66)
+  /// See transcriptSchema in @fairdrops/game-kit.
+  content   Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("session_transcripts")
+}
+
+/// The signed result of an external game.
+model ScoreReport {
+  sessionId          String   @id @map("session_id") @db.Uuid
+  reporter           String   @db.Char(42)
+  apiKeyId           String   @map("api_key_id") @db.Uuid
+  /// As reported: [{ player, score }], best first.
+  ranking            Json
+  gameTranscriptHash String?  @map("game_transcript_hash") @db.Char(66)
+  signature          String
+  receivedAt         DateTime @default(now()) @map("received_at") @db.Timestamptz(3)
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("score_reports")
+}
+
+/// Content a game draws on, such as a quiz's question bank. Private until a game that used it
+/// is over, when it is published in the transcript. Immutable; the hash is the key.
+model GameResource {
+  hash        String   @id @db.Char(66)
+  kind        String
+  /// Short, non-secret description, e.g. "History: 40 questions".
+  summary     String
+  content     Json
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([kind])
+  @@map("game_resources")
 }

@@ -183,8 +183,9 @@ DELETE FROM chain_syncs
 COMMIT;
 ```
 
-Once other tables reference giveaways (game sessions, for example), resetting will need to
-account for them.
+Game sessions reference giveaways, so a chain with sessions cannot be reset this way: the
+delete fails rather than discard played games. Settle or remove those sessions deliberately
+first.
 
 ## Configuration
 

@@ -8,4 +8,5 @@ export * from "./health.js";
 export * from "./limits.js";
 export * from "./primitives.js";
 export * from "./profiles.js";
+export * from "./sessions.js";
 export * from "./tokens.js";

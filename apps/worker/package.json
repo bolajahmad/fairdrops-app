@@ -15,9 +15,12 @@
   "dependencies": {
     "@fairdrops/contracts": "workspace:*",
     "@fairdrops/db": "workspace:*",
+    "@fairdrops/game-kit": "workspace:*",
     "@fairdrops/shared": "workspace:*",
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",
+    "bullmq": "catalog:",
+    "ioredis": "catalog:",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
     "viem": "catalog:",
