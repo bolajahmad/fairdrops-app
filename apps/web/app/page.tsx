@@ -1,14 +1,16 @@
 import { connection } from "next/server";
-import { fetchApiHealth } from "@/lib/api";
+import { Discover } from "@/components/discover";
+import { serverFairDrops } from "@/lib/fairdrops";
 
 export default async function HomePage() {
   await connection();
-  const health = await fetchApiHealth();
-
-  return (
-    <main>
-      <h1>FairDrops</h1>
-      <p>API status: {health ? `${health.status} (version ${health.version})` : "unreachable"}</p>
-    </main>
-  );
+  let items: Awaited<ReturnType<ReturnType<typeof serverFairDrops>["giveaways"]["list"]>>["items"] =
+    [];
+  let error = false;
+  try {
+    items = (await serverFairDrops().giveaways.list({ status: "ACTIVE", limit: 24 })).items;
+  } catch {
+    error = true;
+  }
+  return <Discover items={items} error={error} />;
 }

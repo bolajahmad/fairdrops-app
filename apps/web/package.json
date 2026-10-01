@@ -9,20 +9,35 @@
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint .",
+    "test": "vitest run",
     "clean": "rm -rf .next .turbo"
   },
   "dependencies": {
+    "@fairdrops/game-kit": "workspace:*",
+    "@fairdrops/sdk": "workspace:*",
     "@fairdrops/shared": "workspace:*",
+    "@radix-ui/react-dialog": "catalog:",
+    "@radix-ui/react-radio-group": "catalog:",
+    "@radix-ui/react-tooltip": "catalog:",
+    "clsx": "catalog:",
+    "lucide-react": "catalog:",
     "next": "catalog:",
+    "next-themes": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "tailwind-merge": "catalog:",
+    "viem": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@fairdrops/config": "workspace:*",
+    "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "eslint": "catalog:",
-    "typescript": "catalog:"
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

@@ -47,6 +47,8 @@ pnpm --filter @fairdrops/db db:migrate
 pnpm dev
 ```
 
+Before the worker will start, set `GOLDSKY_PROJECT_ID` or `INDEXER_ENABLED=false` in `.env`. See [docs/running.md](docs/running.md) for running everything, or each part on its own, and for troubleshooting.
+
 Tests for `@fairdrops/api`, `@fairdrops/db` and `@fairdrops/worker` run against the local
 Postgres and Redis, so start them with `pnpm infra:up` first. They use separate test databases
 (`fairdrops_test`, and `fairdrops_test_worker` for the worker) and Redis indexes (15 for the API,
@@ -76,4 +78,5 @@ review, [docs/deployment.md](docs/deployment.md) for deploying the contracts,
 [docs/indexer.md](docs/indexer.md) for indexing, and [docs/game-runtime.md](docs/game-runtime.md)
 for games, sessions and live play,
 [docs/settlement.md](docs/settlement.md) for payouts, finalization, claims and the testnet
-end-to-end suite, and [docs/sdk.md](docs/sdk.md) for the client SDK.
+end-to-end suite, [docs/sdk.md](docs/sdk.md) for the client SDK, and
+[docs/design/DESIGN.md](docs/design/DESIGN.md) for the design system and screens of the web app.

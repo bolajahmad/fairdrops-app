@@ -1,0 +1,206 @@
+@import "tailwindcss";
+@import "../../../docs/design/tokens.css";
+
+/*
+ * Tokens stay the source of colour. Tailwind reads them through these aliases, so a theme
+ * change updates utilities without a second palette. Focus uses outline, never ring:
+ * ring is a box-shadow and would replace the 4px press edge.
+ */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-lagoon: var(--lagoon);
+  --color-lagoon-press: var(--lagoon-press);
+  --color-lagoon-soft: var(--lagoon-soft);
+  --color-lagoon-strong: var(--lagoon-strong);
+  --color-on-lagoon: var(--on-lagoon);
+  --color-flare: var(--flare);
+  --color-flare-press: var(--flare-press);
+  --color-flare-soft: var(--flare-soft);
+  --color-flare-strong: var(--flare-strong);
+  --color-on-flare: var(--on-flare);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-strong: var(--danger-strong);
+  --color-on-danger: var(--on-danger);
+  --color-focus: var(--focus);
+  --color-stage-dice: var(--stage-dice);
+  --color-stage-quiz: var(--stage-quiz);
+  --color-stage-tap: var(--stage-tap);
+  --color-stage-custom: var(--stage-custom);
+  --color-on-stage: var(--on-stage);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+}
+
+:root {
+  --font-display: var(--font-display-loaded), "Figtree", system-ui, sans-serif;
+  --font-body: var(--font-body-loaded), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-mono-loaded), ui-monospace, "SF Mono", Menlo, monospace;
+  --primary: var(--lagoon);
+  --primary-foreground: var(--on-lagoon);
+  --ring: var(--focus);
+  --radius: 14px;
+  --background: var(--surface);
+  --foreground: var(--ink);
+}
+
+/*
+ * Tailwind ships an `overline` utility (text-decoration: overline) that collides with the
+ * design system's `overline` type style. This unlayered rule wins over the utility.
+ */
+.overline {
+  text-decoration-line: none;
+}
+
+body {
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+@layer base {
+  :where(a, button, input, textarea, select, summary, [tabindex]):focus {
+    outline: none;
+  }
+  :where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .on-stage :where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+    outline-color: var(--on-stage);
+  }
+}
+
+.stage-dice,
+.stage-quiz,
+.stage-tap,
+.stage-custom {
+  color: var(--on-stage);
+  background-color: var(--stage-custom);
+  background-image: radial-gradient(circle at 12px 12px, var(--stage-glyph) 3px, transparent 3.5px);
+  background-size: 24px 24px;
+  transition: background-color var(--duration-reveal) var(--ease-out);
+}
+
+.stage-dice {
+  background-color: var(--stage-dice);
+  background-image:
+    radial-gradient(circle at 8px 8px, var(--stage-glyph) 2.5px, transparent 3px),
+    radial-gradient(circle at 24px 24px, var(--stage-glyph) 2.5px, transparent 3px);
+  background-size: 32px 32px;
+}
+
+.stage-quiz {
+  background-color: var(--stage-quiz);
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--stage-glyph) 0 2px,
+    transparent 2px 22px
+  );
+  background-size: auto;
+}
+
+.stage-tap {
+  background-color: var(--stage-tap);
+  background-image: repeating-radial-gradient(
+    circle at 50% 110%,
+    var(--stage-glyph) 0 2px,
+    transparent 2px 44px
+  );
+  background-size: auto;
+}
+
+/* "FairDrops Night" code theme: the same in light and dark, like the game stages. */
+.code-theme {
+  --code-bg: #0b1716;
+  --code-fg: #d6e4e1;
+  --code-muted: #8aa39e;
+  --code-line: #1d302e;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  box-shadow: 0 0 0 1px var(--code-line);
+}
+.code-theme .tok-comment {
+  color: #7b9590;
+  font-style: italic;
+}
+.code-theme .tok-keyword {
+  color: #7fe3d4;
+}
+.code-theme .tok-string {
+  color: #ffb08f;
+}
+.code-theme .tok-fn {
+  color: #9fc3ff;
+}
+.code-theme .tok-type {
+  color: #b9e6a8;
+}
+.code-theme .tok-number {
+  color: #f4a3c0;
+}
+
+@keyframes fd-pop {
+  from {
+    transform: scale(0.86);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes fd-shake {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-6deg);
+  }
+  75% {
+    transform: rotate(6deg);
+  }
+}
+
+@keyframes fd-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.motion-pop {
+  animation: fd-pop var(--duration-base) var(--ease-spring);
+}
+
+.motion-shake {
+  animation: fd-shake 140ms linear infinite;
+}
+
+.motion-rise {
+  animation: fd-rise var(--duration-base) var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-pop,
+  .motion-shake,
+  .motion-rise {
+    animation: none;
+  }
+}

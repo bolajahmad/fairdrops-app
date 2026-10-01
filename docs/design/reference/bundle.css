@@ -1,0 +1,898 @@
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Figtree:wght@400..800&family=Martian+Mono:wght@400..700&display=swap");
+
+/* ---------- base ---------- */
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 24px;
+  background: var(--surface);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+.fd-icon {
+  flex: none;
+  display: block;
+}
+.fd-spin {
+  animation: fd-spin 0.9s linear infinite;
+}
+@keyframes fd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+:where(button, a, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* preview helpers */
+.fd-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-4);
+}
+.fd-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.fd-pad {
+  padding: var(--space-4);
+}
+
+/* ---------- logo ---------- */
+.fd-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  color: var(--ink);
+}
+.fd-mark-hands {
+  stroke: var(--ink);
+}
+.fd-mark-drop {
+  fill: var(--lagoon);
+}
+.fd-mark-shine {
+  fill: var(--surface-raised);
+  opacity: 0.9;
+}
+.fd-logo-word {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.fd-logo-app {
+  display: inline-grid;
+  place-items: center;
+  background: var(--lagoon);
+  border-radius: 28%;
+  box-shadow: var(--edge-lagoon);
+}
+.fd-logo-app .fd-mark-hands {
+  stroke: var(--on-lagoon);
+}
+.fd-logo-app .fd-mark-drop {
+  fill: var(--on-lagoon);
+}
+.fd-logo-app .fd-mark-shine {
+  fill: var(--lagoon);
+}
+
+/* ---------- button: an arcade key with a solid press edge ---------- */
+.fd-btn {
+  --edge: var(--edge-neutral);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font: 600 16px/24px var(--font-body);
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transform: translateY(0);
+  box-shadow: var(--edge);
+  transition:
+    transform var(--duration-press) var(--ease-out),
+    box-shadow var(--duration-press) var(--ease-out),
+    filter var(--duration-fast);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.fd-btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.fd-btn:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: none;
+}
+.fd-btn:disabled {
+  cursor: not-allowed;
+}
+.fd-btn:disabled:not(.is-loading) {
+  opacity: 0.45;
+}
+.fd-btn-sm {
+  height: 36px;
+  padding: 0 var(--space-3);
+  font-size: 14px;
+  border-radius: var(--radius-sm);
+}
+.fd-btn-md {
+  height: 48px;
+  padding: 0 var(--space-5);
+}
+.fd-btn-lg {
+  height: 56px;
+  padding: 0 var(--space-6);
+  font-size: 18px;
+}
+.fd-btn-block {
+  display: flex;
+  width: 100%;
+}
+.fd-btn-primary {
+  --edge: var(--edge-lagoon);
+  background: var(--lagoon);
+  color: var(--on-lagoon);
+}
+.fd-btn-secondary {
+  background: var(--surface-raised);
+  color: var(--ink);
+  box-shadow:
+    inset 0 0 0 1.5px var(--line-strong),
+    var(--edge);
+}
+.fd-btn-secondary:active:not(:disabled) {
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+}
+.fd-btn-ghost {
+  background: transparent;
+  color: var(--lagoon);
+  box-shadow: none;
+  margin-bottom: 0;
+}
+.fd-btn-ghost:hover:not(:disabled) {
+  background: var(--lagoon-soft);
+  color: var(--lagoon-strong);
+  filter: none;
+}
+.fd-btn-ghost:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.fd-btn-danger {
+  --edge: var(--edge-danger);
+  background: var(--danger);
+  color: var(--on-danger);
+}
+.fd-btn-flare {
+  --edge: var(--edge-flare);
+  background: var(--flare);
+  color: var(--on-flare);
+}
+
+.fd-iconbtn {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  border: 0;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+.fd-iconbtn:hover {
+  background: var(--line);
+}
+.fd-iconbtn-stage {
+  background: var(--stage-glyph);
+  color: var(--on-stage);
+}
+.fd-iconbtn-stage:hover {
+  background: var(--on-stage-muted);
+  color: var(--stage-custom);
+}
+
+/* ---------- chips ---------- */
+.fd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 28px;
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font: 600 13px/18px var(--font-body);
+  white-space: nowrap;
+}
+.fd-chip-neutral {
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+}
+.fd-chip-live {
+  background: var(--flare-soft);
+  color: var(--flare-strong);
+}
+.fd-chip-good {
+  background: var(--lagoon-soft);
+  color: var(--lagoon-strong);
+}
+.fd-chip-solid {
+  background: var(--lagoon);
+  color: var(--on-lagoon);
+  animation: fd-pop var(--duration-base) var(--ease-spring);
+}
+.fd-chip-bad {
+  background: var(--danger-soft);
+  color: var(--danger-strong);
+}
+.fd-chip-onstage {
+  background: var(--stage-glyph);
+  color: var(--on-stage);
+}
+.fd-dot {
+  width: 8px;
+  height: 8px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: var(--flare);
+  animation: fd-pulse 1.4s var(--ease-out) infinite;
+}
+@keyframes fd-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--flare);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px var(--flare-soft);
+  }
+}
+@keyframes fd-pop {
+  0% {
+    transform: scale(0.8);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ---------- countdown ---------- */
+.fd-countdown {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.fd-countdown-label {
+  font: 500 13px/18px var(--font-body);
+  color: var(--ink-muted);
+}
+.fd-countdown-digits {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.fd-countdown-s .fd-countdown-digits {
+  font-size: 13px;
+  line-height: 18px;
+}
+.fd-countdown-m .fd-countdown-digits {
+  font-size: 20px;
+  line-height: 24px;
+}
+.fd-countdown-l .fd-countdown-digits {
+  font-size: 48px;
+  line-height: 52px;
+  font-weight: 700;
+}
+.fd-countdown.is-urgent .fd-countdown-digits {
+  color: var(--flare);
+  animation: fd-tick var(--duration-base) var(--ease-spring);
+}
+.fd-countdown-onstage {
+  color: var(--on-stage);
+}
+.fd-countdown-onstage .fd-countdown-label {
+  color: var(--on-stage-muted);
+}
+.fd-countdown-onstage.is-urgent .fd-countdown-digits {
+  color: var(--on-flare);
+  background: var(--flare);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+}
+@keyframes fd-tick {
+  0% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ---------- prize amount ---------- */
+.fd-amount {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 0.3em;
+  color: var(--lagoon);
+  font-variant-numeric: tabular-nums;
+}
+.fd-amount-value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.fd-amount-symbol {
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+.fd-amount-note {
+  flex-basis: 100%;
+  font: 500 13px/18px var(--font-body);
+  color: var(--ink-muted);
+}
+.fd-amount.is-muted {
+  color: var(--ink);
+}
+.fd-amount-s .fd-amount-value {
+  font-size: 14px;
+}
+.fd-amount-s .fd-amount-symbol {
+  font-size: 12px;
+}
+.fd-amount-m .fd-amount-value {
+  font-size: 20px;
+}
+.fd-amount-m .fd-amount-symbol {
+  font-size: 14px;
+}
+.fd-amount-l .fd-amount-value {
+  font-size: 28px;
+  line-height: 32px;
+}
+.fd-amount-l .fd-amount-symbol {
+  font-size: 16px;
+}
+.fd-amount-xl .fd-amount-value {
+  font-size: 48px;
+  line-height: 52px;
+  font-weight: 700;
+}
+.fd-amount-xl .fd-amount-symbol {
+  font-size: 20px;
+}
+
+/* ---------- fair badge ---------- */
+.fd-fair {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1.5px solid currentColor;
+  background: transparent;
+  font: 600 14px/20px var(--font-body);
+  cursor: pointer;
+  text-align: left;
+}
+.fd-fair-neutral {
+  color: var(--ink-muted);
+}
+.fd-fair-good {
+  color: var(--lagoon);
+}
+.fd-fair-bad {
+  color: var(--danger);
+}
+.fd-fair-detail {
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.fd-fair:hover {
+  background: var(--surface-sunken);
+}
+
+/* ---------- avatar ---------- */
+.fd-avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: var(--radius-pill);
+  font: 700 12px/1 var(--font-body);
+}
+.fd-avatar-0 {
+  background: var(--lagoon-soft);
+  color: var(--lagoon-strong);
+}
+.fd-avatar-1 {
+  background: var(--flare-soft);
+  color: var(--flare-strong);
+}
+.fd-avatar-2 {
+  background: var(--surface-sunken);
+  color: var(--ink);
+}
+.fd-avatar-3 {
+  background: var(--stage-quiz);
+  color: var(--on-stage);
+}
+
+/* ---------- giveaway card ---------- */
+.fd-gcard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast);
+  min-width: 0;
+}
+.fd-gcard:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-strong);
+}
+.fd-gcard-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.fd-gcard-host {
+  flex: 1;
+  min-width: 0;
+  font: 600 14px/20px var(--font-body);
+  color: var(--ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fd-gcard-title {
+  margin: 0;
+  font: 700 20px/26px var(--font-display);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.fd-gcard-prize {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.fd-gcard-split {
+  font: 600 13px/18px var(--font-body);
+  color: var(--ink-muted);
+}
+.fd-gcard-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font: 500 13px/18px var(--font-body);
+  color: var(--ink-muted);
+}
+.fd-gcard-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.fd-gcard-meta .fd-countdown {
+  margin-left: auto;
+}
+.fd-gcard-games {
+  gap: 4px !important;
+}
+.fd-gcard-game {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--on-stage);
+}
+.fd-stage-dice {
+  background-color: var(--stage-dice);
+}
+.fd-stage-quiz {
+  background-color: var(--stage-quiz);
+}
+.fd-stage-tap {
+  background-color: var(--stage-tap);
+}
+.fd-stage-custom {
+  background-color: var(--stage-custom);
+}
+
+/* ---------- leaderboard row ---------- */
+.fd-lrow {
+  display: grid;
+  grid-template-columns: 28px 32px minmax(0, 1fr) auto 88px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  list-style: none;
+  animation: fd-rise var(--duration-base) var(--ease-out) both;
+}
+.fd-lrow + .fd-lrow {
+  margin-top: 2px;
+}
+.fd-lrow-rank {
+  font: 700 16px/1 var(--font-mono);
+  color: var(--ink-muted);
+  text-align: center;
+}
+.fd-lrow.is-podium .fd-lrow-rank {
+  color: var(--lagoon);
+}
+.fd-lrow-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fd-lrow-you {
+  font: 700 11px/16px var(--font-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--lagoon);
+  color: var(--on-lagoon);
+}
+.fd-lrow-score {
+  font: 600 15px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.fd-lrow .fd-amount {
+  justify-content: flex-end;
+}
+.fd-lrow-noprize {
+  text-align: right;
+  color: var(--ink-faint);
+}
+.fd-lrow.is-you {
+  background: var(--lagoon-soft);
+}
+.fd-lrow-onstage {
+  color: var(--on-stage);
+}
+.fd-lrow-onstage .fd-lrow-rank,
+.fd-lrow-onstage .fd-lrow-noprize {
+  color: var(--on-stage-muted);
+}
+.fd-lrow-onstage.is-you {
+  background: var(--stage-glyph);
+}
+@keyframes fd-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- claim card ---------- */
+.fd-claim {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius-xl);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+}
+.fd-claim-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.fd-claim-title {
+  margin: 0;
+  font: 700 20px/26px var(--font-display);
+}
+.fd-claim-body {
+  margin: 0;
+  color: var(--ink-muted);
+}
+.fd-claim-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+.fd-claim-ready {
+  border-color: var(--lagoon);
+  box-shadow: 0 0 0 3px var(--lagoon-soft);
+}
+.fd-claim-collected .fd-claim-title::before {
+  content: "✓ ";
+  color: var(--lagoon);
+}
+.fd-claim-expired,
+.fd-claim-none {
+  background: var(--surface-sunken);
+  border-color: transparent;
+}
+
+/* ---------- game stage ---------- */
+.fd-stage {
+  --glyph: radial-gradient(circle at 12px 12px, var(--stage-glyph) 3px, transparent 3.5px);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+  color: var(--on-stage);
+  background-color: var(--stage-custom);
+  background-image: var(--glyph);
+  background-size: 24px 24px;
+  transition: background-color var(--duration-reveal) var(--ease-out);
+  overflow: hidden;
+}
+.fd-stage-dice {
+  background-color: var(--stage-dice);
+  --glyph:
+    radial-gradient(circle at 8px 8px, var(--stage-glyph) 2.5px, transparent 3px),
+    radial-gradient(circle at 24px 24px, var(--stage-glyph) 2.5px, transparent 3px);
+  background-size: 32px 32px;
+}
+.fd-stage-quiz {
+  background-color: var(--stage-quiz);
+  --glyph: repeating-linear-gradient(135deg, var(--stage-glyph) 0 2px, transparent 2px 22px);
+  background-size: auto;
+}
+.fd-stage-tap {
+  background-color: var(--stage-tap);
+  --glyph: repeating-radial-gradient(
+    circle at 50% 110%,
+    var(--stage-glyph) 0 2px,
+    transparent 2px 44px
+  );
+  background-size: auto;
+}
+.fd-stage-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.fd-stage-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--stage-glyph);
+}
+.fd-stage-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.fd-stage-title {
+  font: 700 20px/26px var(--font-display);
+}
+.fd-stage-round {
+  font: 500 13px/18px var(--font-body);
+  color: var(--on-stage-muted);
+}
+.fd-stage-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* ---------- tap target ---------- */
+.fd-tap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding-block: var(--space-4);
+}
+.fd-tap-count {
+  font: 700 48px/52px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  animation: fd-tick var(--duration-base) var(--ease-spring);
+}
+.fd-tap-btn {
+  width: 168px;
+  height: 168px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--flare);
+  color: var(--on-flare);
+  font: 800 28px/1 var(--font-display);
+  letter-spacing: 0.04em;
+  box-shadow:
+    0 10px 0 0 var(--flare-press),
+    0 0 0 10px var(--stage-glyph);
+  cursor: pointer;
+  transition:
+    transform var(--duration-press) var(--ease-out),
+    box-shadow var(--duration-press) var(--ease-out);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.fd-tap-btn:active:not(:disabled) {
+  transform: translateY(10px);
+  box-shadow:
+    0 0 0 0 var(--flare-press),
+    0 0 0 16px var(--stage-glyph);
+}
+.fd-tap-btn:disabled {
+  opacity: 0.5;
+}
+.fd-tap-hint {
+  font: 500 13px/18px var(--font-body);
+  color: var(--on-stage-muted);
+}
+
+/* ---------- field ---------- */
+.fd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.fd-field-label {
+  font: 600 14px/20px var(--font-body);
+  color: var(--ink);
+}
+.fd-input-wrap {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+  transition: box-shadow var(--duration-fast);
+}
+.fd-input-wrap:focus-within {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+.fd-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 400 16px/24px var(--font-body);
+  outline: none;
+}
+.fd-input::placeholder {
+  color: var(--ink-faint);
+}
+.fd-input:focus-visible {
+  outline: none;
+}
+.fd-affix {
+  padding: 0 var(--space-3);
+  font: 600 14px/20px var(--font-body);
+  color: var(--ink-muted);
+}
+.fd-field-desc {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  font: 500 13px/18px var(--font-body);
+  color: var(--ink-muted);
+}
+.fd-field.has-error .fd-input-wrap {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+.fd-field.has-error .fd-field-desc {
+  color: var(--danger);
+}
+
+/* ---------- segmented ---------- */
+.fd-seg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunken);
+}
+.fd-seg-opt {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink-muted);
+  font: 600 14px/20px var(--font-body);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    color var(--duration-fast);
+}
+.fd-seg-opt:hover {
+  color: var(--ink);
+}
+.fd-seg-opt.is-on {
+  background: var(--surface-raised);
+  color: var(--ink);
+  box-shadow:
+    0 2px 0 0 var(--line),
+    inset 0 0 0 1.5px var(--line-strong);
+}
+.fd-seg-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+.fd-seg-hint {
+  font: 500 12px/16px var(--font-body);
+  color: var(--ink-muted);
+}
+.fd-seg-stacked {
+  flex-direction: column;
+}
+.fd-seg-stacked .fd-seg-opt {
+  justify-content: flex-start;
+  padding: var(--space-3);
+}
+.fd-seg-stacked .fd-seg-opt.is-on {
+  box-shadow: inset 0 0 0 2px var(--lagoon);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* contrast fixes: focus ring on dark stages, lagoon text on the tinted "you" row */
+.fd-stage :focus-visible {
+  outline-color: var(--on-stage);
+}
+.fd-lrow.is-you .fd-amount,
+.fd-lrow.is-you .fd-lrow-rank {
+  color: var(--lagoon-strong);
+}

@@ -1,0 +1,215 @@
+/* FairDrops tokens. Generated from tokens.json; edit that file, not this one.
+ * Themes: light is the default; dark applies when the device prefers dark (Auto) unless
+ * data-theme="light" is set, or whenever data-theme="dark" is set on <html>.
+ * Fonts (Google Fonts): Bricolage Grotesque, Figtree, Martian Mono. */
+:root {
+  --surface: #f4f8f7;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e6eeec;
+  --line: #d3dfdc;
+  --line-strong: #6e8883;
+  --ink: #0d1f1e;
+  --ink-muted: #4a615d;
+  --ink-faint: #5f7571;
+  --lagoon: #087a70;
+  --lagoon-press: #055c55;
+  --lagoon-soft: #d5efeb;
+  --lagoon-strong: #06615a;
+  --on-lagoon: #ffffff;
+  --flare: #c44a17;
+  --flare-press: #8f3510;
+  --flare-soft: #fbe3d6;
+  --flare-strong: #9a3710;
+  --on-flare: #ffffff;
+  --danger: #b4233a;
+  --danger-soft: #f8dde1;
+  --danger-strong: #8a1a2c;
+  --on-danger: #ffffff;
+  --success: var(--lagoon);
+  --focus: #2f5be0;
+  --stage-dice: #0b3d3a;
+  --stage-quiz: #1b2350;
+  --stage-tap: #3b1f14;
+  --stage-custom: #22252b;
+  --on-stage: #f2f7f6;
+  --on-stage-muted: rgba(242, 247, 246, 0.72);
+  --stage-glyph: rgba(242, 247, 246, 0.07);
+  --edge-lagoon: 0 4px 0 0 #055c55;
+  --edge-neutral: 0 4px 0 0 #c3d2ce;
+  --edge-flare: 0 4px 0 0 #8f3510;
+  --edge-danger: 0 4px 0 0 #7e1627;
+  --lift: 0 1px 2px 0 rgba(13, 31, 30, 0.06), 0 12px 28px -14px rgba(13, 31, 30, 0.22);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+  --duration-press: 80ms;
+  --duration-fast: 160ms;
+  --duration-base: 240ms;
+  --duration-reveal: 900ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --font-display: "Bricolage Grotesque", "Figtree", system-ui, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #0a1413;
+    --surface-raised: #12201f;
+    --surface-sunken: #07100f;
+    --line: #1f3331;
+    --line-strong: #5e7a75;
+    --ink: #e8f1ef;
+    --ink-muted: #a3b8b4;
+    --ink-faint: #7e9591;
+    --lagoon: #3fc9b6;
+    --lagoon-press: #1f8f80;
+    --lagoon-soft: #0f3532;
+    --lagoon-strong: #7fe3d4;
+    --on-lagoon: #04211e;
+    --flare: #ff8a5b;
+    --flare-press: #b8542b;
+    --flare-soft: #3a1c10;
+    --flare-strong: #ffb08f;
+    --on-flare: #2a0e03;
+    --danger: #ff6b7f;
+    --danger-soft: #3a141b;
+    --danger-strong: #ffa3b0;
+    --on-danger: #2a0409;
+    --focus: #8fb0ff;
+    --edge-lagoon: 0 4px 0 0 #1f8f80;
+    --edge-neutral: 0 4px 0 0 #050c0b;
+    --edge-flare: 0 4px 0 0 #b8542b;
+    --edge-danger: 0 4px 0 0 #a8374a;
+    --lift: 0 1px 0 0 rgba(255, 255, 255, 0.04), 0 16px 32px -16px rgba(0, 0, 0, 0.7);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #0a1413;
+  --surface-raised: #12201f;
+  --surface-sunken: #07100f;
+  --line: #1f3331;
+  --line-strong: #5e7a75;
+  --ink: #e8f1ef;
+  --ink-muted: #a3b8b4;
+  --ink-faint: #7e9591;
+  --lagoon: #3fc9b6;
+  --lagoon-press: #1f8f80;
+  --lagoon-soft: #0f3532;
+  --lagoon-strong: #7fe3d4;
+  --on-lagoon: #04211e;
+  --flare: #ff8a5b;
+  --flare-press: #b8542b;
+  --flare-soft: #3a1c10;
+  --flare-strong: #ffb08f;
+  --on-flare: #2a0e03;
+  --danger: #ff6b7f;
+  --danger-soft: #3a141b;
+  --danger-strong: #ffa3b0;
+  --on-danger: #2a0409;
+  --focus: #8fb0ff;
+  --edge-lagoon: 0 4px 0 0 #1f8f80;
+  --edge-neutral: 0 4px 0 0 #050c0b;
+  --edge-flare: 0 4px 0 0 #b8542b;
+  --edge-danger: 0 4px 0 0 #a8374a;
+  --lift: 0 1px 0 0 rgba(255, 255, 255, 0.04), 0 16px 32px -16px rgba(0, 0, 0, 0.7);
+  color-scheme: dark;
+}
+
+.display-xl {
+  font-family: var(--font-display);
+  font-size: 56px;
+  line-height: 56px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.display-l {
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 44px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.title-l {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 32px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.title-m {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 700;
+}
+.body-l {
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 400;
+}
+.body {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+}
+.body-strong {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+}
+.label {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+.caption {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+.overline {
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.score-xl {
+  font-family: var(--font-mono);
+  font-size: 48px;
+  line-height: 52px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.amount {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.mono-s {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+}
