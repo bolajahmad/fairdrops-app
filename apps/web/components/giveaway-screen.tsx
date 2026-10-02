@@ -2,8 +2,9 @@
 
 import type { GiveawayView } from "@fairdrops/shared";
 import { rewardPlaces } from "@fairdrops/shared";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppBar } from "@/components/app-bar";
 import { Button } from "@/components/button";
 import { Countdown } from "@/components/countdown";
@@ -30,7 +31,9 @@ import {
 import { gameHowTo, gameTitle, parseLineup } from "@/lib/play-director";
 import { useServerClock } from "@/lib/clock";
 import { playTimeLabel } from "@/lib/presets";
-import { connectInjectedWallet } from "@/lib/wallet";
+import { useAccount } from "@/lib/account";
+import { useHydrated } from "@/lib/hydrated";
+import { When } from "@/components/when";
 
 export function GiveawayScreen({
   giveaway,
@@ -43,9 +46,28 @@ export function GiveawayScreen({
 }) {
   const router = useRouter();
   const now = useServerClock();
+  const account = useAccount();
+  const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Whether the signed-in wallet already joined, so the button can go straight to the lobby.
+  const [joined, setJoined] = useState(false);
+  const sessionId = giveaway.session?.id ?? null;
+  const signedIn = account.state.status === "signedIn";
+  const connected = account.state.status === "signedOut" ? account.state.wallet : null;
+
+  useEffect(() => {
+    if (!signedIn || !sessionId) return;
+    let live = true;
+    browserFairDrops()
+      .sessions.membership(sessionId)
+      .then((membership) => live && setJoined(membership.joined))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [signedIn, sessionId]);
   const status = giveawayStatus(giveaway, {
     endsAtMs: endsAt ? Date.parse(endsAt) : undefined,
     nowMs: now ?? undefined,
@@ -70,20 +92,25 @@ export function GiveawayScreen({
           ? Math.ceil((Date.parse(endsAt) - now) / 1000)
           : 0;
 
-  async function join() {
-    if (!giveaway.session) return;
+  /**
+   * Signs in only if needed (one signature, no network switch), joins (joining twice is fine) and
+   * opens the lobby. Someone who already joined goes straight there.
+   */
+  async function enter() {
+    if (!sessionId) return;
+    if (joined) {
+      router.push(`/play/${sessionId}`);
+      return;
+    }
     setBusy(true);
     setNotice(null);
     try {
-      const fd = browserFairDrops();
-      try {
-        await fd.auth.me();
-      } catch {
-        const wallet = await connectInjectedWallet(giveaway.chainId);
-        await fd.auth.signIn(wallet, { chainId: giveaway.chainId, connector: "injected" });
+      if (!signedIn && !(await account.signInWithWallet(giveaway.chainId))) {
+        setNotice(account.error ?? "Couldn't sign you in. Try again.");
+        return;
       }
-      await fd.sessions.join(giveaway.session.id);
-      router.push(`/play/${giveaway.session.id}`);
+      await browserFairDrops().sessions.join(sessionId);
+      router.push(`/play/${sessionId}`);
     } catch (caught) {
       setNotice(friendlyError(caught, "Couldn't join. Try again."));
     } finally {
@@ -93,12 +120,25 @@ export function GiveawayScreen({
 
   const unwon = giveaway.session?.noWinners ?? false;
   const failed = giveaway.session?.status === "FAILED" && !unwon;
-  const closed =
-    failed ||
-    unwon ||
-    giveaway.phase === "cancelled" ||
-    giveaway.phase === "expired" ||
-    giveaway.phase === "closed";
+  // Joining is only for a game that hasn't finished; afterwards the page shows the outcome.
+  const joinable =
+    !failed &&
+    !unwon &&
+    sessionId !== null &&
+    (giveaway.phase === "upcoming" || giveaway.phase === "live");
+  const finished = giveaway.phase === "claimable" || giveaway.phase === "closed";
+  const verifyHref = `/g/${giveaway.chainId}/${giveaway.giveawayId}/verify`;
+  // Only games played in rounds take new players once they've started.
+  const closedToNewPlayers = giveaway.phase === "live" && !joined && !rounds;
+  const ctaLabel = closedToNewPlayers
+    ? copy.joiningClosed
+    : joined
+      ? giveaway.phase === "live"
+        ? copy.playNow
+        : copy.toLobby
+      : giveaway.phase === "live"
+        ? copy.joinNow
+        : copy.join;
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col">
@@ -112,14 +152,37 @@ export function GiveawayScreen({
               status={status}
               label={
                 giveaway.phase === "upcoming"
-                  ? `Starts ${formatWhen(giveaway.startTime)}`
+                  ? hydrated
+                    ? `Starts ${formatWhen(giveaway.startTime)}`
+                    : "Starts soon"
                   : undefined
               }
             />
             {now !== null && (status === "upcoming" || status === "live" || status === "ending") ? (
-              <Countdown seconds={Math.max(0, seconds)} running size="m" label="in" />
+              <Countdown
+                seconds={Math.max(0, seconds)}
+                running
+                size="m"
+                label={giveaway.phase === "upcoming" ? "starts in" : "ends in"}
+                tone={giveaway.phase === "upcoming" ? "start" : "cutoff"}
+              />
             ) : null}
           </div>
+        ) : null}
+        {status ? (
+          <p className="caption m-0 flex flex-wrap items-center gap-x-3 gap-y-1 text-ink-muted">
+            <span className="inline-flex items-center gap-1.5">
+              <Icon name="clock" size={14} />
+              {giveaway.phase === "upcoming" ? "Starts" : "Started"}{" "}
+              <When iso={giveaway.startTime} />
+            </span>
+            {endsAt ? (
+              <span>
+                {finished || unwon || failed || giveaway.phase === "settling" ? "Ended" : "Ends"}{" "}
+                <When iso={endsAt} />
+              </span>
+            ) : null}
+          </p>
         ) : (
           <ErrorNote>This giveaway can&apos;t be shown right now.</ErrorNote>
         )}
@@ -141,7 +204,7 @@ export function GiveawayScreen({
           ) : null}
           <p className="m-0 text-ink-muted">
             Top {winnerCount} players win.
-            {giveaway.rewards?.kind === "weighted" ? " Bigger prizes for higher places." : ""}
+            {shareNote(giveaway.rewards)}
           </p>
           <ol className="m-0 mt-3 list-none p-0">
             {places.slice(0, 3).map((place, index) => (
@@ -196,12 +259,35 @@ export function GiveawayScreen({
             </ol>
           </section>
         ) : null}
-        <p className="caption text-ink-muted">{players} joined</p>
-        <FairBadge state="pending" />
-        <p className="text-ink-muted">
-          Scores are recorded as the game is played and checked before anyone is paid. You can check
-          it yourself afterwards.
+        <p className="caption text-ink-muted">
+          {players} {finished ? "played" : "joined"}
+          {joined && !finished ? " · including you" : ""}
         </p>
+        {finished && sessionId ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <FairBadge state="verified" href={verifyHref} />
+            </div>
+            <Link href={`/play/${sessionId}/results`} className="self-start">
+              <Button variant="secondary" iconAfter="arrow">
+                See the winners
+              </Button>
+            </Link>
+          </div>
+        ) : giveaway.phase === "settling" ? (
+          <FairBadge state="checking" label="Checking scores before anyone is paid" />
+        ) : unwon ||
+          failed ||
+          giveaway.phase === "cancelled" ||
+          giveaway.phase === "expired" ? null : (
+          <>
+            <FairBadge state="pending" />
+            <p className="text-ink-muted">
+              Scores are recorded as the game is played and checked before anyone is paid. You can
+              check it yourself afterwards.
+            </p>
+          </>
+        )}
         {unwon ? (
           <p className="m-0 rounded-md bg-surface-sunken p-3 text-ink-muted">
             Nobody played or scored enough to win, so the whole prize went back to the host.
@@ -217,19 +303,21 @@ export function GiveawayScreen({
         ) : null}
         {notice && !open ? <ErrorNote>{notice}</ErrorNote> : null}
       </div>
-      {!closed && status ? (
+      {joinable && status ? (
         <div className="sticky bottom-0 border-t border-line bg-surface px-4 py-3">
           <Button
             size="lg"
             block
             iconAfter="arrow"
-            loading={busy}
-            disabled={!giveaway.session || giveaway.phase === "settling"}
-            onClick={() => setOpen(true)}
+            loading={busy || account.state.status === "loading"}
+            disabled={closedToNewPlayers}
+            onClick={() => (signedIn ? void enter() : setOpen(true))}
           >
-            {giveaway.phase === "live" ? copy.joinNow : copy.join}
+            {ctaLabel}
           </Button>
-          <p className="caption mt-2 text-center text-ink-muted">{copy.freeToJoin}</p>
+          <p className="caption mt-2 text-center text-ink-muted">
+            {joined ? copy.youreIn : copy.freeToJoin}
+          </p>
         </div>
       ) : null}
       <Sheet open={open} onOpenChange={setOpen} title={`Join ${title}`}>
@@ -240,10 +328,10 @@ export function GiveawayScreen({
           icon="wallet"
           loading={busy}
           onClick={() => {
-            void join();
+            void enter();
           }}
         >
-          {copy.signIn.wallet}
+          {connected ? copy.signIn.continueAs(shortenWallet(connected)) : copy.signIn.wallet}
         </Button>
         <Button size="lg" block variant="secondary" icon="users" disabled>
           {copy.continueGoogle}
@@ -258,4 +346,16 @@ export function GiveawayScreen({
       </Sheet>
     </div>
   );
+}
+
+/**
+ * How the places compare, true to the split: a random split can pay a lower place more, so it
+ * isn't described as "bigger prizes for higher places".
+ */
+function shareNote(rewards: GiveawayView["rewards"]): string {
+  if (!rewards || rewards.kind === "equal") return " Every winner gets the same.";
+  const descending = rewards.bps.every((bps, i) => i === 0 || bps <= rewards.bps[i - 1]!);
+  return descending
+    ? " Bigger prizes for higher places."
+    : " Each place has its own surprise share.";
 }

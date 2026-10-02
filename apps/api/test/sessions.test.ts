@@ -6,6 +6,7 @@ import {
   errorResponseSchema,
   gameResourceViewSchema,
   pageSchema,
+  membershipViewSchema,
   participantViewSchema,
   sessionViewSchema,
   type Address,
@@ -117,6 +118,28 @@ describe("joining", () => {
     );
     expect(list).toEqual({ items: [joined], nextCursor: null });
     await expect(t.db.sessionParticipant.count()).resolves.toBe(1);
+  });
+
+  it("tells a signed-in wallet whether it has joined", async () => {
+    const session = await createSession(t.db);
+    const player = await signIn(t.server);
+    await request(t.server).get(`/sessions/${session.id}/me`).expect(401);
+    const me = () =>
+      request(t.server)
+        .get(`/sessions/${session.id}/me`)
+        .set("authorization", player.bearer)
+        .expect(200)
+        .then((response) => membershipViewSchema.parse(response.body));
+
+    await expect(me()).resolves.toMatchObject({ joined: false, joinedAt: null });
+    await request(t.server)
+      .post(`/sessions/${session.id}/join`)
+      .set("authorization", player.bearer)
+      .expect(200);
+    await expect(me()).resolves.toMatchObject({
+      wallet: player.account.address.toLowerCase(),
+      joined: true,
+    });
   });
 
   it("pages through players", async () => {

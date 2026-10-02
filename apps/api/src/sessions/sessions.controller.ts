@@ -16,6 +16,7 @@ import {
   scoreReportRequestSchema,
   uuidSchema,
   type Hex,
+  type MembershipView,
   type Page,
   type PaginationQuery,
   type ParticipantView,
@@ -55,6 +56,16 @@ export class SessionsController {
     @Query(new ZodValidationPipe(paginationQuerySchema)) query: PaginationQuery,
   ): Promise<Page<ParticipantView>> {
     return this.sessions.participants(id, query);
+  }
+
+  /** Whether the signed-in wallet is in this game, so the app can go straight to the lobby. */
+  @Get(":id/me")
+  @UseGuards(AuthGuard)
+  membership(
+    @CurrentAuth() auth: AuthContext,
+    @Param("id", idPipe) id: string,
+  ): Promise<MembershipView> {
+    return this.sessions.membership(auth, id);
   }
 
   @Post(":id/join")

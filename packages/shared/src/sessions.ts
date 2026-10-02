@@ -72,6 +72,14 @@ export const participantViewSchema = z.object({
 });
 export type ParticipantView = z.infer<typeof participantViewSchema>;
 
+/** `GET /sessions/:id/me`: whether the signed-in wallet has joined, so a page can skip "Join". */
+export const membershipViewSchema = z.object({
+  wallet: addressSchema,
+  joined: z.boolean(),
+  joinedAt: isoDateTimeSchema.nullable(),
+});
+export type MembershipView = z.infer<typeof membershipViewSchema>;
+
 // External games
 
 /**

@@ -101,6 +101,11 @@ export interface CountdownProps {
   urgentAt?: number;
   doneLabel?: string;
   onStage?: boolean;
+  /**
+   * `start`: counting down to something beginning, green throughout. `cutoff` (the default):
+   * counting down to something closing, red in its last `urgentAt` seconds.
+   */
+  tone?: "start" | "cutoff";
 }
 
 export interface PrizeAmountProps {
@@ -165,6 +170,8 @@ export interface ClaimCardProps {
   winners?: number;
   onCollect?: () => void;
   onShare?: () => void;
+  /** Where the badge links to show how the result was checked. */
+  verifyHref?: string;
 }
 
 export interface GameStageProps {

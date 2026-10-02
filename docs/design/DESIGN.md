@@ -50,7 +50,8 @@ The contract runs on any EVM chain; Monad testnet is the demo chain. The UI talk
 
 1. **One brand colour and one urgency colour.**
    - `lagoon` (teal) is the brand, **all money**, primary actions and anything verified.
-   - `flare` (orange) means **time only**: live, ending soon, the last 10 seconds.
+   - `flare` (orange) means **live**: the live and ending-soon chips.
+   - Countdowns: counting down to a **start** is green (`lagoon`, or `stage-go` on a stage) the whole way; counting down to a **cutoff** (a quiz question, a round, a giveaway's end) turns red (`danger`, or `stage-alert` on a stage) in its last seconds, and players are expected to answer anyway.
    - Use no other hues apart from the neutrals, `danger`, and the game stage grounds.
    - No yellow and nothing gender-coded.
 2. **Every game kind has its own dark stage ground:** `stage-dice`, `stage-quiz`, `stage-tap`, `stage-custom`.

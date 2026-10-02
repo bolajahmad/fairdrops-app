@@ -1,6 +1,6 @@
 "use client";
 
-import { PRICE_CURRENCY } from "@fairdrops/shared";
+import { PRICE_CURRENCY, referenceValue } from "@fairdrops/shared";
 import { useEffect, useState } from "react";
 import { browserFairDrops } from "./fairdrops";
 
@@ -32,4 +32,51 @@ export function formatReference(value: number, approximate = true): string {
     maximumFractionDigits: 2,
   }).format(value);
   return `${prefix}${text} ${PRICE_CURRENCY}`;
+}
+
+/** One token's total, with its approximate USDT value (null when it has no price). */
+export interface TokenTotal {
+  key: string;
+  chainId: number;
+  symbol: string;
+  decimals: number;
+  amount: bigint;
+  value: number | null;
+}
+
+/**
+ * Adds amounts up per token (USDC on two networks is two tokens) and prices each total. Without
+ * prices every value is null, and screens show token amounts only.
+ */
+export function totalsByToken(
+  entries: readonly {
+    chainId: number;
+    address: string;
+    amount: bigint | string;
+    decimals: number;
+    symbol: string;
+  }[],
+  prices: Record<string, number> | null,
+): TokenTotal[] {
+  const totals = new Map<string, TokenTotal>();
+  for (const entry of entries) {
+    const key = `${entry.chainId}:${entry.address.toLowerCase()}`;
+    const total = totals.get(key) ?? {
+      key,
+      chainId: entry.chainId,
+      symbol: entry.symbol,
+      decimals: entry.decimals,
+      amount: 0n,
+      value: null,
+    };
+    total.amount += BigInt(entry.amount);
+    totals.set(key, total);
+  }
+  for (const [key, total] of totals) {
+    const [chainId, address] = key.split(":") as [string, string];
+    total.value = prices
+      ? referenceValue({ chainId: Number(chainId), address }, total.amount, total.decimals, prices)
+      : null;
+  }
+  return [...totals.values()];
 }

@@ -12,6 +12,7 @@ import { TokensModule } from "./tokens/tokens.module.js";
 import { GiveawaysModule } from "./giveaways/giveaways.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { InfraModule } from "./infra/infra.module.js";
+import { LeaderboardsModule } from "./leaderboards/leaderboards.module.js";
 import { PricesModule } from "./prices/prices.module.js";
 import { ProfilesModule } from "./profiles/profiles.module.js";
 import { SessionsModule } from "./sessions/sessions.module.js";
@@ -31,6 +32,7 @@ import { SessionsModule } from "./sessions/sessions.module.js";
     GiveawaysModule,
     TokensModule,
     PricesModule,
+    LeaderboardsModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ErrorFilter }],
 })

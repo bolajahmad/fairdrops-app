@@ -303,6 +303,7 @@ export function ResultsScreen({ sessionId }: { sessionId: string }) {
           note={claim ? `on ${chainName(claim.chainId)}` : undefined}
           deadline={claim?.claimDeadline ? formatWhen(claim.claimDeadline) : undefined}
           winners={settlement?.winnerCount}
+          verifyHref={`${giveawayHref}/verify`}
           onCollect={() => {
             if (!claim) return;
             setCollecting(true);

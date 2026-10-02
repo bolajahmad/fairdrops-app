@@ -15,6 +15,7 @@ export function ClaimCard({
   winners = 3,
   onCollect,
   onShare,
+  verifyHref,
 }: ClaimCardProps) {
   const title = {
     waiting: "Results are being counted",
@@ -44,7 +45,15 @@ export function ClaimCard({
           "border-transparent bg-surface-sunken shadow-none",
       )}
     >
-      <p className="m-0 font-display text-xl font-bold">{title}</p>
+      {/* The fairness badge is a status of the result, so it sits with the title, not the actions. */}
+      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <p className="m-0 font-display text-xl font-bold">{title}</p>
+        {state === "waiting" ? (
+          <FairBadge state="checking" />
+        ) : state === "ready" || state === "collecting" || state === "collected" ? (
+          <FairBadge state="verified" href={verifyHref} />
+        ) : null}
+      </header>
       {showAmount && amount ? (
         <PrizeAmount amount={amount} symbol={symbol} size="xl" note={note} />
       ) : null}
@@ -60,14 +69,10 @@ export function ClaimCard({
         </Button>
       ) : null}
       {state === "collected" ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <Button variant="secondary" icon="share" onClick={onShare}>
-            {copy.shareWin}
-          </Button>
-          <FairBadge state="verified" />
-        </div>
+        <Button variant="secondary" icon="share" className="self-start" onClick={onShare}>
+          {copy.shareWin}
+        </Button>
       ) : null}
-      {state === "waiting" ? <FairBadge state="checking" /> : null}
     </section>
   );
 }

@@ -8,7 +8,10 @@ const SIZES = {
   l: "text-5xl leading-none",
 } as const;
 
-/** Displays seconds the parent computed from the server clock. It does not read the device clock. */
+/**
+ * Displays seconds the parent computed from the server clock. It does not read the device clock.
+ * Green counts down to a start; red marks the last seconds before something closes.
+ */
 export function Countdown({
   seconds,
   running = true,
@@ -17,6 +20,7 @@ export function Countdown({
   urgentAt = 10,
   doneLabel,
   onStage = false,
+  tone = "cutoff",
 }: CountdownProps) {
   const left = Math.max(0, Math.floor(seconds));
   const urgent = running && left <= urgentAt && left > 0;
@@ -28,8 +32,15 @@ export function Countdown({
       className={cn(
         "inline-flex max-w-full flex-wrap items-baseline gap-2 font-mono font-bold tabular-nums",
         SIZES[size],
-        onStage ? "text-on-stage" : "text-ink",
-        urgent && "text-flare motion-pop",
+        tone === "start"
+          ? onStage
+            ? "text-stage-go"
+            : "text-lagoon"
+          : onStage
+            ? "text-on-stage"
+            : "text-ink",
+        urgent && "motion-pop",
+        urgent && tone === "cutoff" && (onStage ? "text-stage-alert" : "text-danger"),
         done && "text-ink-muted",
       )}
     >

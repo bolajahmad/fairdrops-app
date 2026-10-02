@@ -4,13 +4,16 @@ import type { MeResponse } from "@fairdrops/shared";
 import { useCallback, useEffect, useState } from "react";
 import { friendlyError } from "./errors";
 import { browserFairDrops } from "./fairdrops";
-import { connectInjectedWallet } from "./wallet";
+import { connectedAccount, walletForSignIn } from "./wallet";
 
 /** Base Sepolia: the chain the sign-in message names when the page has no chain of its own. */
 const SIGN_IN_CHAIN = 84532;
 
 export type AccountState =
-  { status: "loading" } | { status: "signedOut" } | { status: "signedIn"; me: MeResponse };
+  | { status: "loading" }
+  /** `wallet`: a wallet already connected to this site, so sign-in is one signature. */
+  | { status: "signedOut"; wallet: string | null }
+  | { status: "signedIn"; me: MeResponse };
 
 /** Who is signed in, and the ways to sign in or out. Sign-in only signs a message; no transaction. */
 export function useAccount() {
@@ -23,7 +26,10 @@ export function useAccount() {
     browserFairDrops()
       .auth.me()
       .then((me) => live && setState({ status: "signedIn", me }))
-      .catch(() => live && setState({ status: "signedOut" }));
+      .catch(async () => {
+        const wallet = await connectedAccount().catch(() => null);
+        if (live) setState({ status: "signedOut", wallet });
+      });
     return () => {
       live = false;
     };
@@ -33,7 +39,7 @@ export function useAccount() {
     setBusy(true);
     setError(null);
     try {
-      const wallet = await connectInjectedWallet(chainId);
+      const wallet = await walletForSignIn(chainId);
       const me = await browserFairDrops().auth.signIn(wallet, { chainId, connector: "injected" });
       setState({ status: "signedIn", me });
       return me;
@@ -49,7 +55,7 @@ export function useAccount() {
     await browserFairDrops()
       .auth.signOut()
       .catch(() => {});
-    setState({ status: "signedOut" });
+    setState({ status: "signedOut", wallet: await connectedAccount().catch(() => null) });
   }, []);
 
   return { state, busy, error, signInWithWallet, signOut };

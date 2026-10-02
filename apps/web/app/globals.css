@@ -35,6 +35,8 @@
   --color-stage-tap: var(--stage-tap);
   --color-stage-custom: var(--stage-custom);
   --color-on-stage: var(--on-stage);
+  --color-stage-go: var(--stage-go);
+  --color-stage-alert: var(--stage-alert);
   --font-sans: var(--font-body);
   --font-display: var(--font-display);
   --font-mono: var(--font-mono);

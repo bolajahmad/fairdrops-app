@@ -5,7 +5,9 @@ import {
   gameDefinitionViewSchema,
   giveawayEventViewSchema,
   giveawayViewSchema,
+  leaderboardsViewSchema,
   meResponseSchema,
+  membershipViewSchema,
   nonceResponseSchema,
   pageSchema,
   pricesResponseSchema,
@@ -24,7 +26,9 @@ import {
   type OnchainStatus,
   type GiveawayView,
   type Hex,
+  type LeaderboardsView,
   type MeResponse,
+  type MembershipView,
   type Page,
   type PricesResponse,
   type ParticipantView,
@@ -223,6 +227,10 @@ export class FairDrops {
         schema: sessionViewSchema,
       }),
 
+    /** Whether the signed-in wallet has joined this game. Needs a sign-in. */
+    membership: (sessionId: string): Promise<MembershipView> =>
+      this.http.get(`/sessions/${sessionId}/me`, { schema: membershipViewSchema }),
+
     participants: (sessionId: string): Promise<ParticipantView[]> =>
       this.all((cursor) =>
         this.http.get(`/sessions/${sessionId}/participants`, {
@@ -274,6 +282,12 @@ export class FairDrops {
     /** Question banks a quiz can draw from: names and sizes, never the questions. */
     quizBanks: (): Promise<QuizBankView[]> =>
       this.http.get("/quiz-banks", { schema: quizBankViewSchema.array() }),
+  };
+
+  /** Top winners and hosts, all time, from finalized giveaways. */
+  readonly leaderboards = {
+    get: (): Promise<LeaderboardsView> =>
+      this.http.get("/leaderboards", { schema: leaderboardsViewSchema }),
   };
 
   readonly contracts = {

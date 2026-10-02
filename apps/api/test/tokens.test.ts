@@ -3,6 +3,7 @@ import {
   errorResponseSchema,
   giveawayViewSchema,
   pageSchema,
+  leaderboardsViewSchema,
   pricesResponseSchema,
   tokenViewSchema,
   type Address,
@@ -136,5 +137,37 @@ describe("prices", () => {
     );
     expect(body.currency).toBe("USDT");
     expect(body.prices).toMatchObject({ usd: 1, ethereum: 2000, monad: 0.05 });
+  });
+});
+
+describe("leaderboards", () => {
+  it("is empty until a giveaway is finalized, then ranks winners and hosts", async () => {
+    const empty = leaderboardsViewSchema.parse(
+      (await request(t.server).get("/leaderboards").expect(200)).body,
+    );
+    expect(empty.winners).toEqual([]);
+    expect(empty.hosts).toEqual([]);
+  });
+
+  it("ranks by approximate USDT from confirmed settlements only", async () => {
+    const a = "0x00000000000000000000000000000000000000a1" as Address;
+    const b = "0x00000000000000000000000000000000000000b2" as Address;
+    const { computed } = await createSettledGiveaway(t.db, {
+      players: [a, b],
+      status: "CONFIRMED",
+    });
+    // A settlement that isn't final yet doesn't count.
+    await createSettledGiveaway(t.db, { players: [a, b] });
+
+    const body = leaderboardsViewSchema.parse(
+      (await request(t.server).get("/leaderboards").expect(200)).body,
+    );
+    expect(body.winners.map((entry) => entry.account).sort()).toEqual(
+      computed.payouts.map((payout) => payout.account).sort(),
+    );
+    expect(body.winners[0]!.rank).toBe(1);
+    expect(body.winners[0]!.value).toBeGreaterThan(0);
+    expect(body.hosts).toHaveLength(1);
+    expect(body.hosts[0]).toMatchObject({ count: 1 });
   });
 });

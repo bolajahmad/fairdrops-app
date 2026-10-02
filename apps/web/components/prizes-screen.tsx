@@ -1,6 +1,6 @@
 "use client";
 
-import { findChain, type ClaimView } from "@fairdrops/shared";
+import { findChain, referenceValue, type ClaimView } from "@fairdrops/shared";
 import { claimPrize, setPayoutWallet } from "@fairdrops/sdk/claims";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -14,6 +14,8 @@ import { Segmented } from "@/components/segmented";
 import { Shell } from "@/components/shell";
 import { SignInPanel } from "@/components/sign-in-panel";
 import { StatusChip } from "@/components/status-chip";
+import { ValueBreakdown, ValueSummary } from "@/components/value-total";
+import { formatReference, totalsByToken, usePrices } from "@/lib/prices";
 import { useAccount } from "@/lib/account";
 import { copy } from "@/lib/copy";
 import { friendlyError } from "@/lib/errors";
@@ -25,7 +27,6 @@ import {
   tokenDecimals,
   tokenSymbol,
 } from "@/lib/format";
-import { chainName, tokenKey } from "@/lib/tokens";
 import { connectInjectedWallet } from "@/lib/wallet";
 
 type Filter = "all" | "collect" | "collected";
@@ -39,6 +40,8 @@ export function PrizesScreen() {
   const [filter, setFilter] = useState<Filter>("all");
   const [collecting, setCollecting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [breakdown, setBreakdown] = useState(false);
+  const prices = usePrices();
   const signedIn = account.state.status === "signedIn";
 
   const apply = useCallback((result: { claims: ClaimView[]; titles: Record<string, string> }) => {
@@ -96,21 +99,16 @@ export function PrizesScreen() {
         : true,
   );
   // Per token, not per symbol: USDC on two networks are two different tokens.
-  const totals = new Map<
-    string,
-    { amount: bigint; decimals: number; symbol: string; chainId: number }
-  >();
-  for (const claim of list) {
-    const id = tokenKey({ chainId: claim.chainId, address: claim.token });
-    const current = totals.get(id) ?? {
-      amount: 0n,
+  const totals = totalsByToken(
+    list.map((claim) => ({
+      chainId: claim.chainId,
+      address: claim.token,
+      amount: claim.amount,
       decimals: tokenDecimals(claim),
       symbol: tokenSymbol(claim),
-      chainId: claim.chainId,
-    };
-    current.amount += BigInt(claim.amount);
-    totals.set(id, current);
-  }
+    })),
+    prices,
+  );
 
   return (
     <Shell>
@@ -170,25 +168,26 @@ export function PrizesScreen() {
           <>
             <section className="flex flex-col gap-4 rounded-xl bg-lagoon-soft p-6">
               <span className="overline text-lagoon-strong">Won so far</span>
-              <div className="flex flex-wrap gap-x-8 gap-y-2">
-                {[...totals.entries()].map(([id, total]) => (
-                  <span key={id} className="flex flex-col">
-                    <PrizeAmount
-                      amount={formatTokenAmount(total.amount.toString(), total.decimals)}
-                      symbol={total.symbol}
-                      size="xl"
-                    />
-                    <span className="caption text-lagoon-strong">
-                      on {chainName(total.chainId)}
-                    </span>
-                  </span>
-                ))}
+              <div className="flex flex-col gap-1">
+                <ValueSummary
+                  totals={totals}
+                  open={breakdown}
+                  onToggle={() => setBreakdown((open) => !open)}
+                  panelId="won-breakdown"
+                  tone="onLagoon"
+                />
               </div>
               <p className="m-0 text-lagoon-strong">
                 {list.length} {list.length === 1 ? "prize" : "prizes"}
                 {toCollect.length ? ` · ${toCollect.length} to collect` : " · all collected"}
               </p>
             </section>
+            <ValueBreakdown
+              totals={totals}
+              open={breakdown}
+              id="won-breakdown"
+              className={breakdown ? "-mt-4" : "-mt-12"}
+            />
 
             <section className="flex flex-col gap-4">
               <Segmented
@@ -207,6 +206,16 @@ export function PrizesScreen() {
                     <PrizeRow
                       key={keyOf(claim)}
                       claim={claim}
+                      value={
+                        prices
+                          ? referenceValue(
+                              { chainId: claim.chainId, address: claim.token },
+                              claim.amount,
+                              tokenDecimals(claim),
+                              prices,
+                            )
+                          : null
+                      }
                       title={titles[keyOf(claim)] ?? "Giveaway"}
                       busy={collecting === keyOf(claim)}
                       onCollect={() => void collect(claim)}
@@ -247,11 +256,14 @@ async function fetchClaims(): Promise<{ claims: ClaimView[]; titles: Record<stri
 
 function PrizeRow({
   claim,
+  value,
   title,
   busy,
   onCollect,
 }: {
   claim: ClaimView;
+  /** Approximate USDT, or null when the token has no price. */
+  value: number | null;
   title: string;
   busy: boolean;
   onCollect: () => void;
@@ -274,11 +286,16 @@ function PrizeRow({
         </span>
       </Link>
       <div className="flex items-center justify-between gap-3 sm:justify-end">
-        <PrizeAmount
-          amount={formatTokenAmount(claim.amount, tokenDecimals(claim))}
-          symbol={tokenSymbol(claim)}
-          size="m"
-        />
+        <span className="flex flex-col sm:items-end">
+          <PrizeAmount
+            amount={formatTokenAmount(claim.amount, tokenDecimals(claim))}
+            symbol={tokenSymbol(claim)}
+            size="m"
+          />
+          {value !== null ? (
+            <span className="caption text-ink-muted tabular-nums">{formatReference(value)}</span>
+          ) : null}
+        </span>
         {ready ? (
           <Button size="sm" icon="gift" loading={busy} onClick={onCollect}>
             {busy ? copy.collecting : copy.collect}

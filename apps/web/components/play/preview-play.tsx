@@ -13,7 +13,8 @@ import {
   type PlayBeat,
 } from "@/lib/play-director";
 import { playBlip } from "@/lib/sound";
-import { DiceStage, LobbyStage, NextStage, QuizStage } from "./stages";
+import { LobbyStage } from "./lobby";
+import { DiceStage, NextStage, QuizStage } from "./stages";
 
 const QUIZ = [
   {

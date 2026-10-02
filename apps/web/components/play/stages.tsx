@@ -6,9 +6,7 @@ import { cn } from "@/lib/cn";
 import { gameHowTo, gameTitle, type GameSlot } from "@/lib/play-director";
 import { playBlip } from "@/lib/sound";
 import { gameIconName } from "@/components/avatar";
-import { AppBar } from "@/components/app-bar";
 import { Button } from "@/components/button";
-import { Countdown } from "@/components/countdown";
 import { GameStage } from "@/components/game-stage";
 import { Icon } from "@/components/icon";
 
@@ -21,12 +19,21 @@ const PIPS: Record<number, number[]> = {
   6: [0, 2, 3, 5, 6, 8],
 };
 
-export function DieFace({ value, rolling }: { value: number; rolling: boolean }) {
+export function DieFace({
+  value,
+  rolling,
+  small = false,
+}: {
+  value: number;
+  rolling: boolean;
+  small?: boolean;
+}) {
   const pips = PIPS[value] ?? PIPS[1];
   return (
     <span
       className={cn(
-        "grid size-[104px] grid-cols-3 grid-rows-3 rounded-lg bg-on-stage p-3 shadow-[0_4px_0_0_var(--lagoon-press)]",
+        "grid grid-cols-3 grid-rows-3 rounded-lg bg-on-stage shadow-[0_4px_0_0_var(--lagoon-press)]",
+        small ? "size-14 p-2" : "size-[104px] p-3",
         rolling && "motion-shake",
       )}
       aria-label={`Die showing ${value}`}
@@ -35,57 +42,13 @@ export function DieFace({ value, rolling }: { value: number; rolling: boolean })
         <span
           key={index}
           className={cn(
-            "m-auto size-3 rounded-full",
+            "m-auto rounded-full",
+            small ? "size-2" : "size-3",
             pips?.includes(index) ? "bg-stage-dice" : "bg-transparent",
           )}
         />
       ))}
     </span>
-  );
-}
-
-export function LobbyStage({
-  title,
-  seconds,
-  games,
-  players,
-  backHref,
-}: {
-  title: string;
-  seconds: number;
-  games: readonly GameSlot[];
-  players: number;
-  backHref?: string;
-}) {
-  return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col">
-      <AppBar title={title} backHref={backHref} />
-      <div className="flex flex-1 flex-col gap-6 px-4 pb-8">
-        <span className="overline text-lagoon">{"You're in"}</span>
-        <h1 className="display-l m-0">Get ready</h1>
-        <div className="flex flex-col items-start gap-1">
-          <Countdown seconds={seconds} running size="l" urgentAt={5} />
-          <span className="caption text-ink-muted">until the first game</span>
-        </div>
-        <ol className="m-0 flex list-none flex-col gap-3 p-0">
-          {games.map((game, index) => (
-            <li key={`${game.id}-${index}`} className="flex flex-wrap items-center gap-3">
-              <span
-                className={`inline-grid size-9 place-items-center rounded-md text-on-stage stage-${game.id}`}
-              >
-                <Icon name={gameIconName(game.id)} size={18} />
-              </span>
-              <span className="body-strong">{gameTitle(game.id)}</span>
-              {index === 0 ? <span className="caption text-lagoon">First up</span> : null}
-            </li>
-          ))}
-        </ol>
-        <p className="caption text-center text-ink-muted">
-          Keep this screen open. The first game starts on its own.
-        </p>
-        <p className="caption text-ink-muted">{players} players waiting</p>
-      </div>
-    </div>
   );
 }
 

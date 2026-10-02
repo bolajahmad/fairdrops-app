@@ -127,7 +127,7 @@ Shows where a giveaway or game is, in player words. The API gives each giveaway 
 - Flare is reserved for `live` and `ending`, the only "hurry" states.
 - `claimable` is the only solid chip. It pops in with `ease-spring`.
 - The consumer can override `label`, for example "Starts Fri 8pm".
-- The chip is always one line, 28px tall. Built-in labels are one or two words ("Counting", "Cancelled", "Void"); a longer label is truncated with "…" and never wraps. The full meaning ("Cancelled, and the host got the prize back") is the chip's tooltip and is read by screen readers.
+- The chip is always one line, 28px tall. Built-in labels are one or two words ("Counting", "Cancelled", "No winners"); a longer label is truncated with "…" and never wraps. The full meaning ("Cancelled, and the host got the prize back") is the chip's tooltip and is read by screen readers.
 - Never show raw phase or status names to players.
 
 ```ts

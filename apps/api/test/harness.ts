@@ -20,6 +20,7 @@ import { API_ENV, type ApiEnv } from "../src/config/env.js";
 import { ChainClients } from "../src/infra/chain-clients.service.js";
 import { PRISMA, type Database } from "../src/infra/prisma.module.js";
 import { REDIS } from "../src/infra/redis.module.js";
+import { LeaderboardsService } from "../src/leaderboards/leaderboards.service.js";
 import { PRICE_SOURCE, type PriceSource } from "../src/prices/price-source.js";
 import { TOKEN_READER, type Erc20Metadata, type TokenReader } from "../src/tokens/token-reader.js";
 
@@ -100,6 +101,7 @@ export async function createTestApp(): Promise<TestApp> {
       contractSignatures.valid = false;
       erc20s.clear();
       tokenReads.count = 0;
+      app.get(LeaderboardsService).clear();
       await resetDatabase(db);
       await redis.flushdb();
     },

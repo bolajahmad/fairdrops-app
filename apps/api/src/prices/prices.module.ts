@@ -6,5 +6,6 @@ import { PricesService } from "./prices.service.js";
 @Module({
   controllers: [PricesController],
   providers: [PricesService, { provide: PRICE_SOURCE, useClass: CoinGeckoPriceSource }],
+  exports: [PricesService],
 })
 export class PricesModule {}

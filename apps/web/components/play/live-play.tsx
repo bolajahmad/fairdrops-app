@@ -30,7 +30,8 @@ import {
 } from "@/lib/play-director";
 import { playBlip } from "@/lib/sound";
 import { RoundsPlay } from "./rounds-play";
-import { DiceStage, LobbyStage, NextStage, QuizStage } from "./stages";
+import { LobbyStage } from "./lobby";
+import { DiceStage, NextStage, QuizStage } from "./stages";
 
 type Views = {
   publicView: DicePublicView | QuizPublicView | null;
@@ -145,7 +146,9 @@ export function LivePlay({ sessionId }: { sessionId: string }) {
 
   useEffect(() => {
     if (beat.type === "settling" || beat.type === "results") {
-      router.push(`/play/${sessionId}/results`);
+      // Replace, not push: Back from the results then leaves the finished game instead of
+      // reopening it, which would only bounce back here.
+      router.replace(`/play/${sessionId}/results`);
     }
   }, [beat.type, router, sessionId]);
 
@@ -243,6 +246,8 @@ export function LivePlay({ sessionId }: { sessionId: string }) {
         games={lineup}
         players={session.playerCount}
         backHref={`/g/${session.chainId}/${session.giveawayId}`}
+        sessionId={session.id}
+        giveaway={{ chainId: session.chainId, giveawayId: session.giveawayId }}
       />
     );
   }

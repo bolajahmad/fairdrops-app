@@ -75,6 +75,7 @@ export function GiveawayCard({ giveaway, href = "#", onClick }: GiveawayCardProp
               running
               size="s"
               label={giveaway.status === "upcoming" ? "Starts in" : "Ends in"}
+              tone={giveaway.status === "upcoming" ? "start" : "cutoff"}
             />
           </span>
         ) : null}

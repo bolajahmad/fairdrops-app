@@ -5,6 +5,7 @@ export * from "./errors.js";
 export * from "./games.js";
 export * from "./giveaways.js";
 export * from "./health.js";
+export * from "./leaderboards.js";
 export * from "./limits.js";
 export * from "./primitives.js";
 export * from "./profiles.js";

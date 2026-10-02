@@ -1,6 +1,6 @@
 "use client";
 
-import type { GiveawayPhase, GiveawayView } from "@fairdrops/shared";
+import type { GiveawayView, LeaderboardsView } from "@fairdrops/shared";
 import { rewardPlaces } from "@fairdrops/shared";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -8,6 +8,7 @@ import { Button } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorNote } from "@/components/error-note";
 import { GiveawayCard } from "@/components/giveaway-card";
+import { LeaderboardsCard } from "@/components/leaderboards-card";
 import { Shell } from "@/components/shell";
 import type { GameKind, PlayerStatus } from "@/components/types";
 import { copy } from "@/lib/copy";
@@ -24,11 +25,19 @@ import { shortenWallet } from "@/lib/format";
 
 const FILTERS = ["All", "Live now", "Starting soon", "Ending soon", "Finished"] as const;
 
-export function Discover({ items, error }: { items: GiveawayView[]; error: boolean }) {
+export function Discover({
+  items,
+  error,
+  boards,
+}: {
+  items: GiveawayView[];
+  error: boolean;
+  boards: LeaderboardsView | null;
+}) {
   const now = useServerClock();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
   const cards = useMemo(() => items.map((item) => toCard(item, now)), [items, now]);
-  const visible = cards.filter((card) => matches(filter, card.phase, card.status));
+  const visible = cards.filter((card) => matches(filter, card.status));
 
   const live = cards.filter((card) => card.phase === "live").length;
 
@@ -108,26 +117,7 @@ export function Discover({ items, error }: { items: GiveawayView[]; error: boole
             ))}
           </div>
         </div>
-        <aside className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="title-m m-0">Leaderboards</h2>
-            <span className="rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-semibold text-ink-muted">
-              {copy.comingSoon}
-            </span>
-          </div>
-          <p className="m-0 text-ink-muted">
-            Monthly boards for the hosts who give the most and the players who win the most.
-          </p>
-          <ol className="m-0 flex list-none flex-col gap-2 p-0" aria-hidden>
-            {[0, 1, 2].map((row) => (
-              <li key={row} className="flex items-center gap-3">
-                <span className="w-5 font-mono text-sm font-bold text-ink-faint">{row + 1}</span>
-                <span className="size-8 rounded-full bg-surface-sunken" />
-                <span className="h-3 flex-1 rounded-full bg-surface-sunken" />
-              </li>
-            ))}
-          </ol>
-        </aside>
+        <LeaderboardsCard boards={boards} />
       </div>
     </Shell>
   );
@@ -161,22 +151,24 @@ function toCard(view: GiveawayView, now: number | null) {
   };
 }
 
-function matches(
-  filter: (typeof FILTERS)[number],
-  phase: GiveawayPhase,
-  status: PlayerStatus,
-): boolean {
+const OPEN: PlayerStatus[] = ["upcoming", "live", "ending"];
+
+/**
+ * By what a player can still do: "All" is what's open or still being settled, newest first;
+ * everything over (won, unwon or called off) is under "Finished" only.
+ */
+function matches(filter: (typeof FILTERS)[number], status: PlayerStatus): boolean {
   switch (filter) {
     case "All":
-      return true;
+      return OPEN.includes(status) || status === "settling";
     case "Live now":
-      return phase === "live";
+      return status === "live" || status === "ending";
     case "Starting soon":
-      return phase === "upcoming";
+      return status === "upcoming";
     case "Ending soon":
       return status === "ending";
     case "Finished":
-      return phase === "closed" || phase === "cancelled" || phase === "expired";
+      return !OPEN.includes(status) && status !== "settling";
     default: {
       const neverFilter: never = filter;
       return neverFilter;

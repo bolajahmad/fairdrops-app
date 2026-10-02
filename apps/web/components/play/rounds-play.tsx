@@ -24,7 +24,8 @@ import { browserFairDrops } from "@/lib/fairdrops";
 import { shortenWallet } from "@/lib/format";
 import { gameHowTo, gameTitle, type PlayableGameId } from "@/lib/play-director";
 import { playBlip } from "@/lib/sound";
-import { DiceStage, LobbyStage, QuizStage } from "./stages";
+import { LobbyStage } from "./lobby";
+import { DiceStage, QuizStage } from "./stages";
 
 const playable = (id: string): id is PlayableGameId => id === "dice" || id === "quiz";
 
@@ -81,7 +82,7 @@ export function RoundsPlay({ session }: { session: SessionView }) {
 
   useEffect(() => {
     if (["SETTLING", "FINALIZING", "FINALIZED"].includes(status)) {
-      router.push(`/play/${session.id}/results`);
+      router.replace(`/play/${session.id}/results`);
     }
   }, [status, router, session.id]);
 
@@ -136,6 +137,8 @@ export function RoundsPlay({ session }: { session: SessionView }) {
           games={lineup}
           players={session.playerCount}
           backHref={giveawayHref}
+          sessionId={session.id}
+          giveaway={{ chainId: session.chainId, giveawayId: session.giveawayId }}
         />
         {toast}
       </>
@@ -273,6 +276,7 @@ export function RoundsPlay({ session }: { session: SessionView }) {
               urgentAt={3}
               onStage
               label={board.phase === "playing" ? "this round ends in" : "starts in"}
+              tone={board.phase === "playing" ? "cutoff" : "start"}
             />
           </div>
         )}

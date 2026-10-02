@@ -33,6 +33,9 @@
   --stage-custom: #22252b;
   --on-stage: #f2f7f6;
   --on-stage-muted: rgba(242, 247, 246, 0.72);
+  /* Countdown colours on stage-* grounds, dark in both themes: green to a start, red near a cutoff. */
+  --stage-go: #3fc9b6;
+  --stage-alert: #ff6b7f;
   --stage-glyph: rgba(242, 247, 246, 0.07);
   --edge-lagoon: 0 4px 0 0 #055c55;
   --edge-neutral: 0 4px 0 0 #c3d2ce;

@@ -68,7 +68,7 @@ const STATUS: Record<
   failed: {
     tone: "bg-danger-soft text-danger-strong",
     icon: "alert",
-    label: "Void",
+    label: "Cancelled",
     hint: "The game couldn't run, so nobody was paid and the host gets the prize back",
   },
 };

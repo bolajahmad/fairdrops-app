@@ -2,6 +2,9 @@
 export const copy = {
   join: "Join giveaway",
   joinNow: "Join now",
+  playNow: "Play now",
+  toLobby: "Go to the lobby",
+  youreIn: "You're in. We'll start right on time.",
   joiningClosed: "Joining closed",
   youAreIn: "You're in",
   goToLobby: "Go to lobby",
@@ -44,6 +47,7 @@ export const copy = {
   comingSoon: "Coming soon",
   signIn: {
     wallet: "Connect a wallet",
+    continueAs: (wallet: string) => `Continue as ${wallet}`,
     note: "Signing in only asks your wallet to sign a message. It never sends money or costs a fee.",
     developersTitle: "Sign in to manage your games",
     developersReason: "Register games, create API keys and see how your games are used.",

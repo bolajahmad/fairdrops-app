@@ -1,10 +1,9 @@
 "use client";
 
-import type { GiveawayView, Hex, SessionView } from "@fairdrops/shared";
+import type { GiveawayView, Hex, SessionView, SettlementView } from "@fairdrops/shared";
 import { LiveConnection } from "@fairdrops/sdk/live";
 import { addFunds, cancelGiveaway, withdraw, withdrawable } from "@fairdrops/sdk/host";
 import { parseUnits } from "viem";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
@@ -14,13 +13,16 @@ import { TokenFacts } from "@/components/token-facts";
 import { chainName } from "@/lib/tokens";
 import { LeaderboardRow } from "@/components/leaderboard-row";
 import { Sheet } from "@/components/sheet";
+import { ShareButton } from "@/components/share-button";
+import { FairBadge } from "@/components/fair-badge";
+import Link from "next/link";
 import { StatusChip } from "@/components/status-chip";
 import { friendlyError } from "@/lib/errors";
 import { browserFairDrops } from "@/lib/fairdrops";
 import {
   formatTokenAmount,
   shortenWallet,
-  statusFromPhase,
+  giveawayStatus,
   tokenDecimals,
   tokenSymbol,
 } from "@/lib/format";
@@ -39,7 +41,10 @@ export function ManageGiveaway({
   const [confirm, setConfirm] = useState(false);
   const [owed, setOwed] = useState<string | null>(null);
   const [board, setBoard] = useState<{ player: string; score: number; rank: number }[]>([]);
-  const status = statusFromPhase(giveaway.phase) ?? "ended";
+  // The same status players see, including games that ended with no winners.
+  const status = giveawayStatus(giveaway) ?? "ended";
+  const [settlement, setSettlement] = useState<SettlementView | null>(null);
+  const finished = giveaway.phase === "claimable" || giveaway.phase === "closed";
   const symbol = tokenSymbol(giveaway);
   const beforeStart = giveaway.phase === "upcoming";
   const live = giveaway.phase === "live";
@@ -78,6 +83,18 @@ export function ManageGiveaway({
     };
   }, [live, session]);
 
+  useEffect(() => {
+    if (!finished || !session) return;
+    let live = true;
+    browserFairDrops()
+      .settlement.get(session.id)
+      .then((found) => live && setSettlement(found))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [finished, session]);
+
   async function withWallet(
     run: (wallet: Awaited<ReturnType<typeof connectInjectedWallet>>) => Promise<void>,
   ) {
@@ -96,8 +113,12 @@ export function ManageGiveaway({
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
       <BackLink fallback="/host" label="Your giveaways" />
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex items-center justify-between gap-3">
         <StatusChip status={status} />
+        <ShareButton
+          path={`/g/${giveaway.chainId}/${giveaway.giveawayId}`}
+          title={giveaway.metadata?.title ?? "Giveaway"}
+        />
       </div>
       <h1 className="display-l m-0">{giveaway.metadata?.title ?? "Giveaway"}</h1>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -147,7 +168,6 @@ export function ManageGiveaway({
             >
               Add to the prize
             </Button>
-            <Link href={`/host/${giveaway.chainId}/${giveaway.giveawayId}/share`}>Share again</Link>
             <Button variant="danger" onClick={() => setConfirm(true)}>
               Cancel and refund
             </Button>
@@ -161,6 +181,9 @@ export function ManageGiveaway({
       {live ? (
         <section>
           <h2 className="title-m">Live leaderboard</h2>
+          {board.length === 0 ? (
+            <p className="m-0 text-ink-muted">Scores show up here as people play.</p>
+          ) : null}
           <ol className="m-0 list-none p-0">
             {board.slice(0, 5).map((row) => (
               <LeaderboardRow
@@ -171,6 +194,54 @@ export function ManageGiveaway({
               />
             ))}
           </ol>
+        </section>
+      ) : null}
+      {finished && session ? (
+        <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="title-m m-0">Results</h2>
+            <FairBadge
+              state="verified"
+              href={`/g/${giveaway.chainId}/${giveaway.giveawayId}/verify`}
+            />
+          </div>
+          {settlement ? (
+            <>
+              <p className="m-0 text-ink-muted">
+                {settlement.winnerCount} {settlement.winnerCount === 1 ? "winner" : "winners"}{" "}
+                shared {formatTokenAmount(settlement.totalPayout, tokenDecimals(giveaway))} {symbol}
+                .
+              </p>
+              <ol className="m-0 flex list-none flex-col gap-1 p-0">
+                {settlement.payouts.map((payout) => (
+                  <li
+                    key={payout.account}
+                    className="flex items-center justify-between gap-3 border-b border-line py-2 last:border-0"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="w-6 font-mono text-sm text-ink-muted">#{payout.rank}</span>
+                      <span className="font-mono text-sm">{shortenWallet(payout.account)}</span>
+                    </span>
+                    <span className="flex items-center gap-3">
+                      <span className="font-semibold text-lagoon tabular-nums">
+                        {formatTokenAmount(payout.amount, tokenDecimals(giveaway))} {symbol}
+                      </span>
+                      <span className="caption w-20 text-right text-ink-muted">
+                        {payout.claimedAt ? "Collected" : "Not yet"}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </>
+          ) : (
+            <p className="m-0 text-ink-muted">Loading the results…</p>
+          )}
+          <Link href={`/play/${session.id}/results`} className="self-start">
+            <Button variant="secondary" size="sm" iconAfter="arrow">
+              See the final board
+            </Button>
+          </Link>
         </section>
       ) : null}
       {!beforeStart && !live && owed && owed !== "0" ? (
@@ -216,6 +287,10 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function readBoard(view: unknown): { player: string; score: number; rank: number }[] {
+  // A rounds game nests the current round's view.
+  if (view && typeof view === "object" && (view as { kind?: unknown }).kind === "rounds") {
+    return readBoard((view as { view?: unknown }).view);
+  }
   if (!view || typeof view !== "object" || !("leaderboard" in view)) return [];
   const board = (view as { leaderboard?: unknown }).leaderboard;
   if (!Array.isArray(board)) return [];

@@ -115,6 +115,23 @@ export async function requestAccount(): Promise<Address> {
   return account;
 }
 
+/**
+ * A wallet client for signing in. Signing a message needs no network, so unlike
+ * `connectInjectedWallet` this never asks to switch: an already connected wallet goes straight
+ * to the signature prompt. `chainId` only labels the client.
+ */
+export async function walletForSignIn(chainId: number): Promise<WalletClient> {
+  const ethereum = injected();
+  const accounts = (await ethereum.request({ method: "eth_requestAccounts" })) as Address[];
+  const account = accounts[0];
+  if (!account) throw new Error("The wallet did not share an account.");
+  return createWalletClient({
+    account,
+    chain: fairDropsChain(chainId),
+    transport: custom(ethereum),
+  });
+}
+
 export async function connectInjectedWallet(chainId: number): Promise<WalletClient> {
   const ethereum = injected();
   const accounts = (await ethereum.request({ method: "eth_requestAccounts" })) as Address[];

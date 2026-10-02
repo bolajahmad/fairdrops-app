@@ -9,6 +9,7 @@ import {
   type Address,
   type ApiKeyIdentity,
   type Hex,
+  type MembershipView,
   type Page,
   type PaginationQuery,
   type ParticipantView,
@@ -150,6 +151,20 @@ export class SessionsService {
       await appendAction(this.redis, id, auth.wallet, `join-${randomUUID()}`, { roster: "join" });
     }
     return { wallet: participant.wallet as Address, joinedAt: participant.joinedAt.toISOString() };
+  }
+
+  async membership(auth: AuthContext, id: string): Promise<MembershipView> {
+    const session = await this.db.gameSession.findUnique({ where: { id }, select: { id: true } });
+    if (!session) throw AppException.notFound("No such session");
+    const row = await this.db.sessionParticipant.findUnique({
+      where: { sessionId_wallet: { sessionId: id, wallet: auth.wallet } },
+      select: { joinedAt: true },
+    });
+    return {
+      wallet: auth.wallet,
+      joined: row !== null,
+      joinedAt: row ? row.joinedAt.toISOString() : null,
+    };
   }
 
   /** The published record of a finished game, exactly as its hash was computed. */
