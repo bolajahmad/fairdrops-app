@@ -1,3 +1,4 @@
+import { Rng, quiz } from "@fairdrops/game-kit";
 import { PayoutTree, verifyPayoutProof } from "@fairdrops/settlement";
 import type { Address, Hex } from "@fairdrops/shared";
 import { keccak256 } from "viem";
@@ -11,8 +12,10 @@ import { SettlementReconciler } from "../src/settlement/settlement-reconciler.js
 import { SettlementSubmitter } from "../src/settlement/settlement-submitter.js";
 import { SettlementVerifier } from "../src/settlement/settlement-verifier.js";
 import {
+  BANK_HASH,
   CHAIN_ID,
   CONTRACT,
+  bank,
   createHarness,
   owner,
   registerGames,
@@ -107,6 +110,54 @@ const settlementOf = (sessionId: string) =>
   });
 
 describe("settlement", () => {
+  it("pays a player who won places in several rounds once, with their shares added up", async () => {
+    // Two 5 second quiz rounds with a 3 second break; one place per round, two places in all.
+    const config = { bank: BANK_HASH, questions: 1, secondsPerQuestion: 5, revealSeconds: 0 };
+    const session = await runningSession(h, { id: "quiz", config }, [ALICE, BOB], 500, {
+      rounds: { winnersPerRound: 1, playSeconds: 60, cooldownSeconds: 3 },
+    });
+    const running = owner(h, session.id).then((o) => o.run());
+
+    // The answer to each round's question, drawn as the rounds game draws it.
+    const seed = h.vault.decrypt(session.seedCiphertext);
+    const answerIn = (round: number) =>
+      quiz.init({
+        config: quiz.config.parse(config),
+        players: [ALICE, BOB],
+        startAt: session.startsAt.getTime() + round * 8_000,
+        rng: Rng.fromSeed(seed).fork(`round/${round}`),
+        resources: new Map([[BANK_HASH, bank]]),
+      }).questions[0]!.answer;
+    const answer = (round: number) => ({ type: "answer", question: 0, choice: answerIn(round) });
+
+    await send(h.redis, session.id, ALICE, "a0", answer(0));
+    await new Promise((resolve) => setTimeout(resolve, 8_000));
+    await send(h.redis, session.id, ALICE, "a1", answer(1));
+    await expect(running).resolves.toBe("settled");
+
+    const giveaway = await h.db.giveaway.findUniqueOrThrow({
+      where: { chainId_giveawayId: { chainId: CHAIN_ID, giveawayId: session.giveawayId } },
+    });
+    h.chain.addGiveaway(session.giveawayId as Hex, {
+      host: "0x00000000000000000000000000000000000000f0",
+      prize: 1000n,
+      maxWinners: 2,
+      metadataHash: keccak256(giveaway.metadataRaw),
+      seedCommitment: session.seedCommitment as Hex,
+      startTime: h.chain.now - 60,
+      finalizeDeadline: Math.floor(giveaway.finalizeDeadline.getTime() / 1000),
+    });
+
+    expect(await builder.build(session.id)).toBe("built");
+    const settlement = await settlementOf(session.id);
+    expect(settlement.winnerCount).toBe(1);
+    expect(settlement.payouts.map((p) => [p.account, p.amount.toFixed()])).toEqual([
+      [ALICE, "1000"],
+    ]);
+    // An independent verifier recomputes the same payouts from the transcript and signs.
+    expect(await verifier.verify(session.id, keyring.verifiers[0]!)).toBe(true);
+  }, 30_000);
+
   it("takes a finished game to claimed prizes", async () => {
     // Alice and Bob always both roll, so both score; Carol does not.
     const session = await settledGame();

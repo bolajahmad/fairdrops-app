@@ -1,6 +1,8 @@
 import {
   findHostedGame,
   hashJson,
+  rosterActionSchema,
+  sessionGameOf,
   transcriptHash,
   transcriptSchema,
   verifyTranscript,
@@ -98,7 +100,7 @@ export async function verifySettlement(
     `Transcript is for giveaway ${session.giveawayId} on chain ${session.chainId}`,
   );
 
-  check("game", ...gameMatches(transcript, input.metadata));
+  check("game", ...gameMatches(transcript, input.metadata, input.giveaway.maxWinners));
 
   const commitment = seedCommitment(input.giveawayId, transcript.seed);
   check(
@@ -130,6 +132,7 @@ export async function verifySettlement(
   const computed = computeSettlement({
     giveawayId: input.giveawayId,
     ranking: transcript.ranking,
+    awards: transcript.mode === "HOSTED" ? transcript.awards : undefined,
     policy,
     prize: input.giveaway.prize,
   });
@@ -152,8 +155,12 @@ export async function verifySettlement(
   return done(computed);
 }
 
-function gameMatches(transcript: Transcript, metadata: GiveawayMetadata): [boolean, string] {
-  const committed = metadata.game;
+function gameMatches(
+  transcript: Transcript,
+  metadata: GiveawayMetadata,
+  maxWinners: number,
+): [boolean, string] {
+  const committed = sessionGameOf(metadata, maxWinners);
   if (transcript.game.id !== committed.id || transcript.game.version !== committed.version) {
     return [
       false,
@@ -180,9 +187,15 @@ async function resultStands(
   transcript: Transcript,
   reporter: Address | undefined,
 ): Promise<[boolean, string]> {
+  // Games played in rounds take joins between rounds, which the action log records.
   const players = new Set(transcript.players);
+  if (transcript.mode === "HOSTED") {
+    for (const entry of transcript.actions) {
+      if (rosterActionSchema.safeParse(entry.action).success) players.add(entry.player);
+    }
+  }
   if (transcript.ranking.some((entry) => !players.has(entry.player))) {
-    return [false, "The standings include someone who did not join before the start"];
+    return [false, "The standings include someone who never joined"];
   }
 
   if (transcript.mode === "HOSTED") {

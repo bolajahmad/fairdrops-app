@@ -1,6 +1,12 @@
 "use client";
 
-import type { Address, ClaimView, SessionView, SettlementView } from "@fairdrops/shared";
+import {
+  endedWithoutWinners,
+  type Address,
+  type ClaimView,
+  type SessionView,
+  type SettlementView,
+} from "@fairdrops/shared";
 import { FairDropsError } from "@fairdrops/sdk";
 import { claimPrize } from "@fairdrops/sdk/claims";
 import { verifyGiveaway, type GiveawayVerification } from "@fairdrops/sdk/verify";
@@ -18,7 +24,14 @@ import { StatusChip } from "@/components/status-chip";
 import { cn } from "@/lib/cn";
 import { friendlyError } from "@/lib/errors";
 import { browserFairDrops, claimRelayEnabled } from "@/lib/fairdrops";
-import { formatTokenAmount, formatWhen, shortenWallet } from "@/lib/format";
+import {
+  formatTokenAmount,
+  formatWhen,
+  shortenWallet,
+  tokenDecimals,
+  tokenSymbol,
+} from "@/lib/format";
+import { chainName } from "@/lib/tokens";
 import { playBlip } from "@/lib/sound";
 import { connectInjectedWallet } from "@/lib/wallet";
 
@@ -132,7 +145,7 @@ export function ResultsScreen({ sessionId }: { sessionId: string }) {
 
   if (!session) {
     return (
-      <Frame>
+      <Frame backHref="/">
         {loadError ? (
           <EmptyState
             icon="alert"
@@ -153,9 +166,28 @@ export function ResultsScreen({ sessionId }: { sessionId: string }) {
 
   const giveawayHref = `/g/${session.chainId}/${session.giveawayId}`;
 
+  if (endedWithoutWinners(session)) {
+    return (
+      <Frame backHref={giveawayHref}>
+        <EmptyState
+          icon="gift"
+          title="Nobody won this one"
+          action={
+            <Link href={giveawayHref}>
+              <Button variant="secondary">Back to the giveaway</Button>
+            </Link>
+          }
+        >
+          Nobody played or scored enough to win, so the whole prize went back to the host. Nothing
+          was taken from anyone.
+        </EmptyState>
+      </Frame>
+    );
+  }
+
   if (session.status === "CANCELLED" || session.status === "FAILED") {
     return (
-      <Frame>
+      <Frame backHref={giveawayHref}>
         <EmptyState
           icon="alert"
           title={
@@ -179,7 +211,7 @@ export function ResultsScreen({ sessionId }: { sessionId: string }) {
 
   if (PLAYING.has(session.status)) {
     return (
-      <Frame>
+      <Frame backHref={giveawayHref}>
         <EmptyState
           icon="clock"
           title="The game isn't over yet"
@@ -198,7 +230,7 @@ export function ResultsScreen({ sessionId }: { sessionId: string }) {
   if (session.status !== "FINALIZED") {
     const step = settleStep(session, settlement);
     return (
-      <Frame>
+      <Frame backHref={giveawayHref}>
         <div className="flex flex-col gap-6">
           <StatusChip status="settling" />
           <div className="flex flex-col gap-2">
@@ -253,19 +285,22 @@ export function ResultsScreen({ sessionId }: { sessionId: string }) {
     claimable: Boolean(claim?.claimable),
   });
   const myRow = session.ranking?.find((row) => row.player === me);
-  const decimals = claim?.tokenInfo?.decimals ?? 18;
+  const decimals = claim ? tokenDecimals(claim) : 0;
+  const symbol = claim ? tokenSymbol(claim) : undefined;
   const payoutOf = (player: string) =>
     settlement?.payouts.find((payout) => payout.account === player)?.amount;
 
   return (
     <Frame
+      backHref={giveawayHref}
       title="Results"
       sticky={
         <ClaimCard
           state={collecting ? "collecting" : state}
           rank={mine?.rank ?? myRow?.rank}
           amount={mine ? formatTokenAmount(mine.amount, decimals) : undefined}
-          symbol={claim?.tokenInfo?.symbol}
+          symbol={symbol}
+          note={claim ? `on ${chainName(claim.chainId)}` : undefined}
           deadline={claim?.claimDeadline ? formatWhen(claim.claimDeadline) : undefined}
           winners={settlement?.winnerCount}
           onCollect={() => {
@@ -312,7 +347,7 @@ export function ResultsScreen({ sessionId }: { sessionId: string }) {
                 name={row.player === me ? "You" : shortenWallet(row.player)}
                 score={String(row.score)}
                 prize={amount ? formatTokenAmount(amount, decimals) : undefined}
-                symbol={claim?.tokenInfo?.symbol}
+                symbol={symbol}
                 you={row.player === me}
                 delay={index * 80}
               />
@@ -329,18 +364,17 @@ export function ResultsScreen({ sessionId }: { sessionId: string }) {
 }
 
 /** Play-flow page frame: app bar, a centred 480px column, an optional sticky bottom area. */
-function Frame({
-  title,
-  sticky,
-  children,
-}: {
+interface FrameProps {
   title?: string;
   sticky?: ReactNode;
+  backHref: string;
   children: ReactNode;
-}) {
+}
+
+function Frame({ title, sticky, backHref, children }: FrameProps) {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col">
-      <AppBar title={title} logo={!title} />
+      <AppBar title={title} logo={!title} backHref={backHref} />
       <main className="flex flex-1 flex-col px-4 pt-2 pb-8">{children}</main>
       {sticky ? (
         <div className="sticky bottom-0 border-t border-line bg-surface/95 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">

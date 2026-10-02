@@ -11,6 +11,7 @@ import { GiveawayCard } from "@/components/giveaway-card";
 import { Shell } from "@/components/shell";
 import type { GameKind, PlayerStatus } from "@/components/types";
 import { copy } from "@/lib/copy";
+import { chainName } from "@/lib/tokens";
 import { useServerClock } from "@/lib/clock";
 import {
   formatTokenAmount,
@@ -147,10 +148,14 @@ function toCard(view: GiveawayView, now: number | null) {
       title: view.metadata?.title ?? "Giveaway",
       pool: formatTokenAmount(view.prize, tokenDecimals(view)),
       symbol: tokenSymbol(view),
+      network: chainName(view.chainId),
+      trust: view.tokenInfo?.trust ?? "unverified",
       winners: view.rewards ? rewardPlaces(view.rewards) : view.maxWinners,
       status,
+      // Only a start can be counted down here (the list has no end times), and only while the
+      // giveaway is really upcoming: a void or cancelled one shows no countdown at all.
       seconds:
-        now !== null && view.phase === "upcoming" ? secondsBetween(now, view.startTime) : undefined,
+        now !== null && status === "upcoming" ? secondsBetween(now, view.startTime) : undefined,
       games,
     },
   };

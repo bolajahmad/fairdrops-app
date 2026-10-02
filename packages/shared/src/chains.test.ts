@@ -3,6 +3,7 @@ import {
   chainSchema,
   chains,
   chainsInEnvironment,
+  hostableChains,
   explorerAddressUrl,
   findChain,
   subgraphName,
@@ -44,5 +45,14 @@ describe("chain registry", () => {
     );
     expect(explorerAddressUrl(findChain(31337)!, address)).toBeNull();
     expect(findChain(1)).toBeUndefined();
+  });
+});
+
+describe("hostableChains", () => {
+  it("leaves out chains that cannot be indexed", () => {
+    const testnets = hostableChains("testnet").map((chain) => chain.chainId);
+    expect(testnets).toContain(84532);
+    expect(testnets).not.toContain(420420417);
+    expect(hostableChains("local")).toEqual([]);
   });
 });

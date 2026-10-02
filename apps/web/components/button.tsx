@@ -33,9 +33,9 @@ export function Button({
         SIZES[size],
         block && "flex w-full",
         variant === "primary" &&
-          "mb-1 bg-lagoon text-on-lagoon shadow-[var(--edge-lagoon)] hover:brightness-105 active:translate-y-1 active:shadow-none",
+          "mb-1 cursor-pointer bg-lagoon text-on-lagoon shadow-[var(--edge-lagoon)] hover:brightness-110 active:translate-y-1 active:shadow-none",
         variant === "secondary" &&
-          "mb-1 bg-surface-raised text-ink shadow-[inset_0_0_0_1.5px_var(--line-strong),var(--edge-neutral)] hover:brightness-105 active:translate-y-1 active:shadow-[inset_0_0_0_1.5px_var(--line-strong)]",
+          "mb-1 cursor-pointer bg-surface-raised text-ink shadow-[inset_0_0_0_1.5px_var(--line-strong),var(--edge-neutral)] hover:bg-surface-sunken hover:shadow-[inset_0_0_0_1.5px_var(--ink-muted),var(--edge-neutral)] active:translate-y-1 active:shadow-[inset_0_0_0_1.5px_var(--line-strong)]",
         variant === "ghost" &&
           "bg-transparent text-lagoon shadow-none hover:bg-lagoon-soft hover:text-lagoon-strong active:translate-y-px",
         variant === "danger" &&

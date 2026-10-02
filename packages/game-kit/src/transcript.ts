@@ -10,7 +10,7 @@ import { z } from "zod";
 import { hashJson } from "./hash.js";
 import { findHostedGame } from "./registry.js";
 import { Rng } from "./rng.js";
-import type { Standing } from "./types.js";
+import type { Award, Standing } from "./types.js";
 
 const millis = z.number().int().nonnegative();
 
@@ -48,10 +48,21 @@ const common = {
   ranking: z.array(standingSchema),
 };
 
+export const awardSchema = z.strictObject({
+  round: z.number().int().nonnegative(),
+  player: addressSchema,
+  score: z.number().int(),
+});
+
 /** Everything needed to replay a hosted game and check its result. */
 export const hostedTranscriptSchema = z.strictObject({
   ...common,
   mode: z.literal("HOSTED"),
+  /**
+   * For games that award places themselves (rounds): the paid places in order, possibly
+   * several per player. Settlement pays these instead of the ranking.
+   */
+  awards: z.array(awardSchema).optional(),
   resources: z.array(
     z.strictObject({ kind: z.string().min(1), hash: bytes32Schema, content: z.unknown() }),
   ),
@@ -101,11 +112,17 @@ export class ReplayError extends Error {
   }
 }
 
+export interface ReplayResult {
+  ranking: Standing[];
+  /** Only for games that award places themselves. */
+  awards: Award[] | undefined;
+}
+
 /**
- * Replays a hosted game from its transcript and returns the standings it produces. Throws if the
+ * Replays a hosted game from its transcript and returns the result it produces. Throws if the
  * transcript is not internally consistent: unknown game, tampered resources or a gap in the log.
  */
-export function replay(transcript: HostedTranscript): Standing[] {
+export function replay(transcript: HostedTranscript): ReplayResult {
   const game = findHostedGame(transcript.game.id, transcript.game.version);
   if (!game) {
     throw new ReplayError(`Unknown game ${transcript.game.id}@${transcript.game.version}`);
@@ -135,21 +152,24 @@ export function replay(transcript: HostedTranscript): Standing[] {
     game.apply(state, action.data, { player: entry.player, seq: entry.seq, at: entry.at });
   });
 
-  return game.rank(state);
+  return { ranking: game.rank(state), awards: game.awards?.(state) };
 }
 
 export type Verification = { ok: true } | { ok: false; reason: string };
 
 /** Checks that replaying a hosted transcript gives exactly the standings it records. */
 export function verifyTranscript(transcript: HostedTranscript): Verification {
-  let replayed: Standing[];
+  let replayed: ReplayResult;
   try {
     replayed = replay(transcript);
   } catch (error) {
     return { ok: false, reason: (error as Error).message };
   }
-  if (canonicalJson(replayed) !== canonicalJson(transcript.ranking)) {
+  if (canonicalJson(replayed.ranking) !== canonicalJson(transcript.ranking)) {
     return { ok: false, reason: "Replaying the actions gives different standings" };
+  }
+  if (canonicalJson(replayed.awards ?? null) !== canonicalJson(transcript.awards ?? null)) {
+    return { ok: false, reason: "Replaying the actions awards the prizes differently" };
   }
   return { ok: true };
 }

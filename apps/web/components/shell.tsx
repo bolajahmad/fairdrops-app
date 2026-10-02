@@ -43,12 +43,15 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
   );
 }
 
-/** Mobile: a slim top bar with a menu sheet. Desktop: a fixed sidebar. */
+/**
+ * Mobile: a slim top bar with a menu sheet. Desktop: a sidebar pinned to the left edge of the
+ * screen at any width, with only the page content centred (at most 1120px wide) beside it.
+ */
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-[1280px] flex-col md:grid md:grid-cols-[240px_minmax(0,1fr)]">
+    <div className="flex min-h-dvh w-full flex-col md:grid md:grid-cols-[240px_minmax(0,1fr)]">
       <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-line bg-surface/95 px-4 backdrop-blur md:hidden">
         <Link href="/" aria-label="FairDrops">
           <Logo size={24} />
@@ -86,7 +89,9 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col px-4 py-6 md:px-10 md:py-10">{children}</main>
+      <main className="flex min-w-0 flex-1 flex-col px-4 py-6 md:px-10 md:py-10">
+        <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col">{children}</div>
+      </main>
     </div>
   );
 }

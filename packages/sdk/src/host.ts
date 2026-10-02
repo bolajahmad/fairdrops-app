@@ -4,6 +4,7 @@
  * waits for its receipt.
  */
 import { fairDropsAbi } from "@fairdrops/contracts";
+import { findHostedGame, sessionGameOf } from "@fairdrops/game-kit";
 import {
   NATIVE_TOKEN_ADDRESS,
   contractLimits,
@@ -98,6 +99,7 @@ export function prepareGiveaway(input: CreateGiveawayInput, now = new Date()): P
   const metadata = giveawayMetadataSchema.parse(input.metadata);
   const problem = rewardPolicyProblem(rewardPolicyOf(metadata, input.maxWinners), input.maxWinners);
   if (problem) throw new InvalidGiveawayError(problem);
+  if (metadata.v === 2 && metadata.rounds) checkRounds(metadata, input.maxWinners, window);
   const encoded = encodeGiveawayMetadata(metadata);
 
   const token = input.token.toLowerCase() as Address;
@@ -117,9 +119,50 @@ export function prepareGiveaway(input: CreateGiveawayInput, now = new Date()): P
   };
 }
 
+/** Time the worker keeps between a game's end and the finalize deadline, to settle it. */
+export const SETTLEMENT_MARGIN_SECONDS = 900;
+
+/**
+ * Rejects rounds FairDrops would refuse to run: settings a round's game doesn't accept, or a
+ * schedule (every round plus the breaks) that would not end in time to settle.
+ */
+function checkRounds(
+  metadata: Parameters<typeof sessionGameOf>[0],
+  maxWinners: number,
+  windowSeconds: number,
+): void {
+  const choice = sessionGameOf(metadata, maxWinners);
+  const game = findHostedGame(choice.id, choice.version);
+  if (!game) throw new InvalidGiveawayError("Rounds can only play FairDrops games");
+  const parsed = game.config.safeParse(choice.config);
+  if (!parsed.success) {
+    throw new InvalidGiveawayError(parsed.error.issues[0]?.message ?? "Invalid round settings");
+  }
+  const seconds = Math.ceil(game.duration(parsed.data) / 1000);
+  if (seconds > windowSeconds - SETTLEMENT_MARGIN_SECONDS) {
+    throw new InvalidGiveawayError(
+      `All rounds take up to ${Math.ceil(seconds / 60)} minutes, which doesn't leave time to ` +
+        "settle before the finalize deadline. Use fewer rounds or shorter games.",
+    );
+  }
+}
+
 export interface HostOptions {
   /** Defaults to a client over the chain's public RPC. */
   publicClient?: PublicClient;
+}
+
+/**
+ * Where `createGiveaway` is, for a progress display. `approve` happens only for an ERC-20 whose
+ * allowance is too low (`skipped` otherwise); `signing` waits on the wallet, `confirming` on
+ * the network.
+ */
+export type CreateProgress =
+  | { step: "approve"; status: "skipped" | "signing" | "confirming" | "done" }
+  | { step: "lock"; status: "signing" | "confirming" | "done" };
+
+export interface CreateGiveawayOptions extends HostOptions {
+  onProgress?: (progress: CreateProgress) => void;
 }
 
 function account(wallet: WalletClient): Account {
@@ -130,8 +173,10 @@ function account(wallet: WalletClient): Account {
 async function sendAndWait(
   client: PublicClient,
   send: () => Promise<Hex>,
+  onSent?: () => void,
 ): Promise<TransactionReceipt> {
   const hash = await send();
+  onSent?.();
   const receipt = await client.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") throw new Error(`Transaction ${hash} reverted`);
   return receipt;
@@ -145,13 +190,16 @@ async function sendAndWait(
 export async function createGiveaway(
   wallet: WalletClient,
   prepared: PreparedGiveaway,
-  options: HostOptions = {},
+  options: CreateGiveawayOptions = {},
 ): Promise<{ giveawayId: Hex; transactionHash: Hex }> {
   const client = options.publicClient ?? publicClientFor(prepared.chainId);
   const chain = fairDropsChain(prepared.chainId);
   const from = account(wallet);
+  const report = options.onProgress ?? (() => {});
 
-  if (prepared.params.token !== NATIVE_TOKEN_ADDRESS) {
+  if (prepared.params.token === NATIVE_TOKEN_ADDRESS) {
+    report({ step: "approve", status: "skipped" });
+  } else {
     const allowance = await client.readContract({
       address: prepared.params.token,
       abi: erc20Abi,
@@ -159,30 +207,42 @@ export async function createGiveaway(
       args: [from.address, prepared.contract],
     });
     if (allowance < prepared.params.amount) {
-      await sendAndWait(client, () =>
-        wallet.writeContract({
-          account: from,
-          chain,
-          address: prepared.params.token,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [prepared.contract, prepared.params.amount],
-        }),
+      report({ step: "approve", status: "signing" });
+      await sendAndWait(
+        client,
+        () =>
+          wallet.writeContract({
+            account: from,
+            chain,
+            address: prepared.params.token,
+            abi: erc20Abi,
+            functionName: "approve",
+            args: [prepared.contract, prepared.params.amount],
+          }),
+        () => report({ step: "approve", status: "confirming" }),
       );
+      report({ step: "approve", status: "done" });
+    } else {
+      report({ step: "approve", status: "skipped" });
     }
   }
 
-  const receipt = await sendAndWait(client, () =>
-    wallet.writeContract({
-      account: from,
-      chain,
-      address: prepared.contract,
-      abi: fairDropsAbi,
-      functionName: "createGiveaway",
-      args: [prepared.params],
-      value: prepared.value,
-    }),
+  report({ step: "lock", status: "signing" });
+  const receipt = await sendAndWait(
+    client,
+    () =>
+      wallet.writeContract({
+        account: from,
+        chain,
+        address: prepared.contract,
+        abi: fairDropsAbi,
+        functionName: "createGiveaway",
+        args: [prepared.params],
+        value: prepared.value,
+      }),
+    () => report({ step: "lock", status: "confirming" }),
   );
+  report({ step: "lock", status: "done" });
   const [created] = parseEventLogs({
     abi: fairDropsAbi,
     eventName: "GiveawayCreated",
@@ -288,4 +348,55 @@ export async function addFunds(
     }),
   );
   return receipt.transactionHash;
+}
+
+export interface TokenRef {
+  chainId: number;
+  /** NATIVE_TOKEN_ADDRESS for the chain's native currency. */
+  address: Address;
+}
+
+/**
+ * What `owner` holds of each token, in the token's smallest unit, keyed `${chainId}:${address}`.
+ * Read in parallel per chain; a token that cannot be read is left out rather than shown as zero.
+ */
+export async function balancesOf(
+  owner: Address,
+  tokens: readonly TokenRef[],
+  options: { publicClient?: (chainId: number) => PublicClient } = {},
+): Promise<Map<string, bigint>> {
+  const out = new Map<string, bigint>();
+  const byChain = new Map<number, TokenRef[]>();
+  for (const token of tokens) {
+    byChain.set(token.chainId, [...(byChain.get(token.chainId) ?? []), token]);
+  }
+  await Promise.all(
+    [...byChain].map(async ([chainId, list]) => {
+      const client = options.publicClient?.(chainId) ?? publicClientFor(chainId);
+      const native = list.filter((token) => token.address === NATIVE_TOKEN_ADDRESS);
+      const erc20s = list.filter((token) => token.address !== NATIVE_TOKEN_ADDRESS);
+      // One call per token, in parallel: registry chains define no Multicall3 to batch with.
+      const [nativeBalance, results] = await Promise.all([
+        native.length ? client.getBalance({ address: owner }).catch(() => null) : null,
+        Promise.allSettled(
+          erc20s.map((token) =>
+            client.readContract({
+              address: token.address,
+              abi: erc20Abi,
+              functionName: "balanceOf",
+              args: [owner],
+            }),
+          ),
+        ),
+      ]);
+      if (nativeBalance !== null) out.set(`${chainId}:${NATIVE_TOKEN_ADDRESS}`, nativeBalance);
+      results.forEach((result, index) => {
+        const token = erc20s[index];
+        if (token && result.status === "fulfilled") {
+          out.set(`${chainId}:${token.address.toLowerCase()}`, result.value);
+        }
+      });
+    }),
+  );
+  return out;
 }

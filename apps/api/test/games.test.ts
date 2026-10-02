@@ -1,3 +1,4 @@
+import { DEFAULT_QUIZ_BANK_HASH, fairDropsMix } from "@fairdrops/game-kit";
 import {
   errorResponseSchema,
   gameDefinitionViewSchema,
@@ -227,5 +228,25 @@ describe("game definitions", () => {
     await act(reviewer, "approve");
     const after = await signedMessage(t.server, newAccount(), { origin: gameOrigin });
     await request(t.server).post("/auth/verify").send(after).expect(200);
+  });
+});
+
+describe("quiz banks", () => {
+  it("lists banks publicly by name and size, never their questions", async () => {
+    const owner = await t.db.user.create({ data: {} });
+    await t.db.gameResource.create({
+      data: {
+        hash: DEFAULT_QUIZ_BANK_HASH,
+        kind: "quiz-bank",
+        summary: "FairDrops mix: 100 questions",
+        content: fairDropsMix,
+        createdById: owner.id,
+      },
+    });
+    const response = await request(t.server).get("/quiz-banks").expect(200);
+    expect(response.body).toEqual([
+      { hash: DEFAULT_QUIZ_BANK_HASH, name: "FairDrops mix", questions: 100, builtin: true },
+    ]);
+    expect(JSON.stringify(response.body)).not.toContain(fairDropsMix.questions[0]!.prompt);
   });
 });

@@ -10,6 +10,11 @@ export function friendlyError(
   const names = chain.map((error) => (error as { name?: string }).name ?? "");
   const codes = chain.map((error) => (error as { code?: unknown }).code);
 
+  // Checked before the generic rejection: declining a network switch has its own fix.
+  const switchError = chain.find(
+    (error) => (error as { name?: string }).name === "ChainSwitchError",
+  );
+  if (switchError) return (switchError as Error).message;
   if (
     codes.includes(4001) ||
     /user (rejected|denied)|rejected the request|request rejected/i.test(text)

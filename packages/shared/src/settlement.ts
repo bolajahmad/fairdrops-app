@@ -55,7 +55,14 @@ export const giveawayViewSchema = z.object({
   withdrawn: uint256Schema,
   createdAt: isoDateTimeSchema,
   createdTxHash: bytes32Schema,
-  session: z.object({ id: uuidSchema, status: sessionStatusSchema }).nullable(),
+  session: z
+    .object({
+      id: uuidSchema,
+      status: sessionStatusSchema,
+      /** It ended with nobody playing or winning, and the prize goes back to the host. */
+      noWinners: z.boolean().default(false),
+    })
+    .nullable(),
 });
 export type GiveawayView = z.infer<typeof giveawayViewSchema>;
 

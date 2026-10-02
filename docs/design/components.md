@@ -109,23 +109,25 @@ export interface IconButtonProps {
 
 Shows where a giveaway or game is, in player words. The API gives each giveaway a `phase` (`GiveawayView.phase`, from `deriveGiveawayPhase` in `@fairdrops/shared`). Map it like this:
 
-| status      | when                                                                      |
-| ----------- | ------------------------------------------------------------------------- |
-| `upcoming`  | phase `upcoming`                                                          |
-| `live`      | phase `live`                                                              |
-| `ending`    | phase `live`, with under 10 minutes left in the game window               |
-| `settling`  | phase `settling` (session `SETTLING` or `FINALIZING`)                     |
-| `results`   | phase `claimable` or `closed`, viewer did not win                         |
-| `claimable` | phase `claimable`, viewer won, `ClaimView.claimedAt` is null              |
-| `claimed`   | the viewer's `ClaimView.claimedAt` is set                                 |
-| `ended`     | phase `closed` (claim window over)                                        |
-| `cancelled` | phase `cancelled`: the host cancelled and was refunded                    |
-| `failed`    | phase `expired`, or session `FAILED`: no result, and the host is refunded |
+| status      | when                                                                                              |
+| ----------- | ------------------------------------------------------------------------------------------------- |
+| `upcoming`  | phase `upcoming`                                                                                  |
+| `live`      | phase `live`                                                                                      |
+| `ending`    | phase `live`, with under 10 minutes left in the game window                                       |
+| `settling`  | phase `settling` (session `SETTLING` or `FINALIZING`)                                             |
+| `results`   | phase `claimable` or `closed`, viewer did not win                                                 |
+| `claimable` | phase `claimable`, viewer won, `ClaimView.claimedAt` is null                                      |
+| `claimed`   | the viewer's `ClaimView.claimedAt` is set                                                         |
+| `ended`     | phase `closed` (claim window over)                                                                |
+| `cancelled` | phase `cancelled`: the host cancelled and was refunded                                            |
+| `unwon`     | `GiveawayView.session.noWinners`: nobody played or scored enough; the prize went back to the host |
+| `failed`    | phase `expired`, or session `FAILED`: no result, and the host is refunded                         |
 
 - A giveaway in phase `invalid` never shows in discovery.
 - Flare is reserved for `live` and `ending`, the only "hurry" states.
 - `claimable` is the only solid chip. It pops in with `ease-spring`.
 - The consumer can override `label`, for example "Starts Fri 8pm".
+- The chip is always one line, 28px tall. Built-in labels are one or two words ("Counting", "Cancelled", "Void"); a longer label is truncated with "…" and never wraps. The full meaning ("Cancelled, and the host got the prize back") is the chip's tooltip and is read by screen readers.
 - Never show raw phase or status names to players.
 
 ```ts

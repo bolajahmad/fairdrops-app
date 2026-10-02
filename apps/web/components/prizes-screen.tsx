@@ -18,7 +18,14 @@ import { useAccount } from "@/lib/account";
 import { copy } from "@/lib/copy";
 import { friendlyError } from "@/lib/errors";
 import { browserFairDrops } from "@/lib/fairdrops";
-import { formatTokenAmount, formatWhen, shortenWallet } from "@/lib/format";
+import {
+  formatTokenAmount,
+  formatWhen,
+  shortenWallet,
+  tokenDecimals,
+  tokenSymbol,
+} from "@/lib/format";
+import { chainName, tokenKey } from "@/lib/tokens";
 import { connectInjectedWallet } from "@/lib/wallet";
 
 type Filter = "all" | "collect" | "collected";
@@ -88,12 +95,21 @@ export function PrizesScreen() {
         ? Boolean(claim.claimedAt)
         : true,
   );
-  const totals = new Map<string, { amount: bigint; decimals: number }>();
+  // Per token, not per symbol: USDC on two networks are two different tokens.
+  const totals = new Map<
+    string,
+    { amount: bigint; decimals: number; symbol: string; chainId: number }
+  >();
   for (const claim of list) {
-    const symbol = claim.tokenInfo?.symbol ?? "TOKEN";
-    const current = totals.get(symbol) ?? { amount: 0n, decimals: claim.tokenInfo?.decimals ?? 18 };
+    const id = tokenKey({ chainId: claim.chainId, address: claim.token });
+    const current = totals.get(id) ?? {
+      amount: 0n,
+      decimals: tokenDecimals(claim),
+      symbol: tokenSymbol(claim),
+      chainId: claim.chainId,
+    };
     current.amount += BigInt(claim.amount);
-    totals.set(symbol, current);
+    totals.set(id, current);
   }
 
   return (
@@ -155,13 +171,17 @@ export function PrizesScreen() {
             <section className="flex flex-col gap-4 rounded-xl bg-lagoon-soft p-6">
               <span className="overline text-lagoon-strong">Won so far</span>
               <div className="flex flex-wrap gap-x-8 gap-y-2">
-                {[...totals.entries()].map(([symbol, total]) => (
-                  <PrizeAmount
-                    key={symbol}
-                    amount={formatTokenAmount(total.amount.toString(), total.decimals)}
-                    symbol={symbol}
-                    size="xl"
-                  />
+                {[...totals.entries()].map(([id, total]) => (
+                  <span key={id} className="flex flex-col">
+                    <PrizeAmount
+                      amount={formatTokenAmount(total.amount.toString(), total.decimals)}
+                      symbol={total.symbol}
+                      size="xl"
+                    />
+                    <span className="caption text-lagoon-strong">
+                      on {chainName(total.chainId)}
+                    </span>
+                  </span>
                 ))}
               </div>
               <p className="m-0 text-lagoon-strong">
@@ -255,8 +275,8 @@ function PrizeRow({
       </Link>
       <div className="flex items-center justify-between gap-3 sm:justify-end">
         <PrizeAmount
-          amount={formatTokenAmount(claim.amount, claim.tokenInfo?.decimals ?? 18)}
-          symbol={claim.tokenInfo?.symbol ?? "TOKEN"}
+          amount={formatTokenAmount(claim.amount, tokenDecimals(claim))}
+          symbol={tokenSymbol(claim)}
           size="m"
         />
         {ready ? (

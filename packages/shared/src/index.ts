@@ -10,4 +10,5 @@ export * from "./primitives.js";
 export * from "./profiles.js";
 export * from "./sessions.js";
 export * from "./settlement.js";
+export * from "./prices.js";
 export * from "./tokens.js";

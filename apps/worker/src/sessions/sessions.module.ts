@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { BuiltinCatalog } from "./builtin-catalog.js";
 import { OnchainSeedCommitter, SEED_COMMITTER } from "./seed-committer.js";
 import { SeedVault } from "./seed-vault.js";
 import { SessionBus } from "./session-bus.js";
@@ -9,6 +10,7 @@ import { SessionSupervisor } from "./session-supervisor.js";
 
 @Module({
   providers: [
+    BuiltinCatalog,
     SeedVault,
     SessionBus,
     SessionLifecycle,
@@ -17,6 +19,13 @@ import { SessionSupervisor } from "./session-supervisor.js";
     SessionSupervisor,
     { provide: SEED_COMMITTER, useClass: OnchainSeedCommitter },
   ],
-  exports: [SessionLifecycle, SessionPlanner, SessionQueues, SessionSupervisor, SeedVault],
+  exports: [
+    BuiltinCatalog,
+    SessionLifecycle,
+    SessionPlanner,
+    SessionQueues,
+    SessionSupervisor,
+    SeedVault,
+  ],
 })
 export class SessionsModule {}

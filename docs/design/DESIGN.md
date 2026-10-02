@@ -83,7 +83,8 @@ The contract runs on any EVM chain; Monad testnet is the demo chain. The UI talk
    - Leave about 35% room for longer text; buttons and chips grow, never truncate.
    - Put no words in images.
    - Use `Intl` for numbers, dates and currency.
-10. **Money display:**
+10. **Tokens:** any ERC-20 on a hostable network can be a prize. An amount is never shown without its token's symbol, and wherever someone acts on it (picking, reviewing, locking, managing, collecting), also with its network, decimals and trust level (Verified / Listed / Unverified). Unverified tokens always show their contract address and a warning, to hosts and players alike. If a token can't be read at all, amounts show as "units of 0x…", never with a guessed symbol or scale.
+11. **Money display:**
     - The token amount comes first ("40 USDC").
     - An optional local estimate follows, marked "≈" ("≈ ₦61,600").
     - Never show raw wei.

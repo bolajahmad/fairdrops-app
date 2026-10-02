@@ -20,6 +20,8 @@ import { API_ENV, type ApiEnv } from "../src/config/env.js";
 import { ChainClients } from "../src/infra/chain-clients.service.js";
 import { PRISMA, type Database } from "../src/infra/prisma.module.js";
 import { REDIS } from "../src/infra/redis.module.js";
+import { PRICE_SOURCE, type PriceSource } from "../src/prices/price-source.js";
+import { TOKEN_READER, type Erc20Metadata, type TokenReader } from "../src/tokens/token-reader.js";
 
 export const APP_ORIGIN = "http://localhost:3000";
 
@@ -32,6 +34,10 @@ export interface TestApp {
   admins: Set<Address>;
   /** Replaces on-chain signature verification for contract wallets. */
   contractSignatures: { valid: boolean };
+  /** ERC-20 contracts the stubbed chains know, by `${chainId}:${address}`; anything else is not a token. */
+  erc20s: Map<string, Erc20Metadata>;
+  /** How many contract reads the stub served, to check that metadata is cached. */
+  tokenReads: { count: number };
   reset(): Promise<void>;
   close(): Promise<void>;
 }
@@ -42,6 +48,23 @@ export async function createTestApp(): Promise<TestApp> {
   const roleReader: RoleReader = {
     isDefaultAdmin: (_chainId, _contract, account) => Promise.resolve(admins.has(account)),
   };
+  const erc20s = new Map<string, Erc20Metadata>();
+  const tokenReads = { count: 0 };
+  const tokenReader: TokenReader = {
+    read: (chainId, address) => {
+      tokenReads.count += 1;
+      return Promise.resolve(erc20s.get(`${chainId}:${address.toLowerCase()}`) ?? null);
+    },
+  };
+  // Never the real market: fixed dollar prices.
+  const priceSource: PriceSource = {
+    fetch: (ids) =>
+      Promise.resolve(
+        Object.fromEntries(
+          Object.entries({ ethereum: 2000, monad: 0.05 }).filter(([id]) => ids.includes(id)),
+        ),
+      ),
+  };
   const chainClients = {
     get: () => ({ verifyMessage: () => Promise.resolve(contractSignatures.valid) }),
   };
@@ -51,6 +74,10 @@ export async function createTestApp(): Promise<TestApp> {
     .useValue(roleReader)
     .overrideProvider(ChainClients)
     .useValue(chainClients)
+    .overrideProvider(TOKEN_READER)
+    .useValue(tokenReader)
+    .overrideProvider(PRICE_SOURCE)
+    .useValue(priceSource)
     .compile();
 
   const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
@@ -66,9 +93,13 @@ export async function createTestApp(): Promise<TestApp> {
     redis,
     admins,
     contractSignatures,
+    erc20s,
+    tokenReads,
     async reset() {
       admins.clear();
       contractSignatures.valid = false;
+      erc20s.clear();
+      tokenReads.count = 0;
       await resetDatabase(db);
       await redis.flushdb();
     },

@@ -160,3 +160,16 @@ export const gameResourceViewSchema = z.object({
   createdAt: isoDateTimeSchema,
 });
 export type GameResourceView = z.infer<typeof gameResourceViewSchema>;
+
+/**
+ * A question bank as hosts see it when setting up a quiz: what it's called and how many
+ * questions it holds. The questions stay private until a game that used the bank is over.
+ */
+export const quizBankViewSchema = z.object({
+  hash: bytes32Schema,
+  name: z.string(),
+  questions: z.number().int().nonnegative(),
+  /** Shipped with FairDrops, rather than uploaded by an admin. */
+  builtin: z.boolean(),
+});
+export type QuizBankView = z.infer<typeof quizBankViewSchema>;

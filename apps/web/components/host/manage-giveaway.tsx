@@ -3,13 +3,15 @@
 import type { GiveawayView, Hex, SessionView } from "@fairdrops/shared";
 import { LiveConnection } from "@fairdrops/sdk/live";
 import { addFunds, cancelGiveaway, withdraw, withdrawable } from "@fairdrops/sdk/host";
-import { NATIVE_TOKEN_ADDRESS } from "@fairdrops/shared";
 import { parseUnits } from "viem";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
 import { ErrorNote } from "@/components/error-note";
 import { Field } from "@/components/field";
+import { TokenFacts } from "@/components/token-facts";
+import { chainName } from "@/lib/tokens";
 import { LeaderboardRow } from "@/components/leaderboard-row";
 import { Sheet } from "@/components/sheet";
 import { StatusChip } from "@/components/status-chip";
@@ -93,6 +95,7 @@ export function ManageGiveaway({
 
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
+      <BackLink fallback="/host" label="Your giveaways" />
       <div className="flex flex-wrap items-center gap-3">
         <StatusChip status={status} />
       </div>
@@ -105,6 +108,7 @@ export function ManageGiveaway({
         />
         <Stat label="Winners" value={String(giveaway.maxWinners)} />
       </div>
+      {giveaway.tokenInfo ? <TokenFacts token={giveaway.tokenInfo} /> : null}
       {beforeStart ? (
         <>
           <Field
@@ -112,24 +116,34 @@ export function ManageGiveaway({
             inputMode="decimal"
             suffix={symbol}
             value={extra}
-            onChange={(event) => setExtra(event.target.value)}
+            disabled={!giveaway.tokenInfo}
+            hint={
+              giveaway.tokenInfo
+                ? `In ${giveaway.tokenInfo.symbol} on ${chainName(giveaway.chainId)}.`
+                : "This token's decimals couldn't be read, so adding to the prize is disabled."
+            }
+            onChange={(event) => setExtra(event.target.value.replace(/[^0-9.]/g, ""))}
           />
           <div className="flex flex-wrap gap-2">
             <Button
               variant="secondary"
               loading={busy}
-              onClick={() =>
+              disabled={!giveaway.tokenInfo || !extra}
+              onClick={() => {
+                const token = giveaway.tokenInfo;
+                if (!token) return;
                 void withWallet(async (wallet) => {
+                  // The giveaway's own token and its real decimals: never a default.
                   await addFunds(
                     wallet,
                     giveaway.chainId,
                     giveaway.giveawayId,
-                    NATIVE_TOKEN_ADDRESS,
-                    parseUnits(extra || "0", tokenDecimals(giveaway)),
+                    giveaway.token,
+                    parseUnits(extra || "0", token.decimals),
                   );
                   setExtra("");
-                })
-              }
+                });
+              }}
             >
               Add to the prize
             </Button>

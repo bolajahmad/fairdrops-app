@@ -6,6 +6,8 @@ import type {
   QuizPlayerView,
   QuizPublicView,
 } from "@fairdrops/game-kit";
+import { ROUNDS_GAME_ID } from "@fairdrops/game-kit";
+import { endedWithoutWinners } from "@fairdrops/shared";
 import type { SessionView } from "@fairdrops/sdk";
 import { LiveConnection, type Room } from "@fairdrops/sdk/live";
 import Link from "next/link";
@@ -15,7 +17,7 @@ import { Button } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorNote } from "@/components/error-note";
 import { Icon } from "@/components/icon";
-import { Logo } from "@/components/logo";
+import { AppBar } from "@/components/app-bar";
 import { copy } from "@/lib/copy";
 import { friendlyError } from "@/lib/errors";
 import { browserFairDrops } from "@/lib/fairdrops";
@@ -27,6 +29,7 @@ import {
   type PlayBeat,
 } from "@/lib/play-director";
 import { playBlip } from "@/lib/sound";
+import { RoundsPlay } from "./rounds-play";
 import { DiceStage, LobbyStage, NextStage, QuizStage } from "./stages";
 
 type Views = {
@@ -42,6 +45,7 @@ export function LivePlay({ sessionId }: { sessionId: string }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [ended, setEnded] = useState<"CANCELLED" | "FAILED" | null>(null);
+  const [rounds, setRounds] = useState(false);
   const [wallet, setWallet] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [now, setNow] = useState<number | null>(null);
@@ -65,6 +69,11 @@ export function LivePlay({ sessionId }: { sessionId: string }) {
         if (loaded.status === "CANCELLED" || loaded.status === "FAILED") {
           setSession(loaded);
           setEnded(loaded.status);
+          return;
+        }
+        if (loaded.game.id === ROUNDS_GAME_ID) {
+          setSession(loaded);
+          setRounds(true);
           return;
         }
         const slots = lineupFromSession(loaded.game.id);
@@ -94,8 +103,14 @@ export function LivePlay({ sessionId }: { sessionId: string }) {
           setViews((current) => ({ ...current, playerView: view })),
         );
         nextRoom.on("status", ({ status }) => {
-          if (status === "CANCELLED" || status === "FAILED") setEnded(status);
-          else apply(status);
+          if (status === "CANCELLED" || status === "FAILED") {
+            // Reloaded for the reason: ending with nobody playing isn't shown as a failure.
+            void fd.sessions
+              .get(sessionId)
+              .then((latest) => !cancel && setSession(latest))
+              .catch(() => undefined)
+              .finally(() => !cancel && setEnded(status));
+          } else apply(status);
         });
         const tick = () => setNow(live?.now() ?? null);
         tick();
@@ -144,6 +159,23 @@ export function LivePlay({ sessionId }: { sessionId: string }) {
     setBeat((current) => reducePlay(current, lineup, { type: "slot-finished" }));
   }, [lineup]);
 
+  if (ended && session && endedWithoutWinners(session)) {
+    return (
+      <PlayMessage>
+        <EmptyState
+          icon="gift"
+          title="Nobody won this one"
+          action={
+            <Link href={`/g/${session.chainId}/${session.giveawayId}`}>
+              <Button variant="secondary">Back to the giveaway</Button>
+            </Link>
+          }
+        >
+          Nobody played or scored enough to win, so the whole prize went back to the host.
+        </EmptyState>
+      </PlayMessage>
+    );
+  }
   if (ended && session) {
     return (
       <PlayMessage>
@@ -165,6 +197,7 @@ export function LivePlay({ sessionId }: { sessionId: string }) {
       </PlayMessage>
     );
   }
+  if (rounds && session && !ended) return <RoundsPlay session={session} />;
   if (loadError) {
     return (
       <PlayMessage>
@@ -327,11 +360,7 @@ function placeOf(board: { player: string; rank: number }[], me: string | undefin
 function PlayMessage({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col">
-      <header className="px-4 py-3">
-        <Link href="/" aria-label="FairDrops">
-          <Logo size={24} />
-        </Link>
-      </header>
+      <AppBar logo backHref="/" />
       <main className="flex flex-1 flex-col justify-center px-4 pb-16">{children}</main>
     </div>
   );

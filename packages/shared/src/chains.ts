@@ -99,6 +99,15 @@ export function chainsInEnvironment(environment: DeploymentEnvironment): Chain[]
   return chains.filter((chain) => chain.environment === environment);
 }
 
+/**
+ * Chains a giveaway can be hosted on: in this environment and indexed. A chain FairDrops is
+ * deployed on but cannot index (no subgraph) is left out, because its giveaways would never
+ * reach players.
+ */
+export function hostableChains(environment: DeploymentEnvironment): Chain[] {
+  return chainsInEnvironment(environment).filter((chain) => chain.subgraphNetwork !== null);
+}
+
 /** Name of the chain's FairDrops subgraph on Goldsky. Every chain has its own deployment. */
 export function subgraphName(chain: Chain): string {
   return `fairdrops-${chain.key}`;

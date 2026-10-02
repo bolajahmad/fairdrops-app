@@ -9,7 +9,7 @@ import {
 } from "@nestjs/common";
 import { HttpAdapterHost } from "@nestjs/core";
 import type { SessionStatus } from "@fairdrops/db";
-import { findHostedGame, type AnyHostedGame } from "@fairdrops/game-kit";
+import { ROUNDS_GAME_ID, findHostedGame, type AnyHostedGame } from "@fairdrops/game-kit";
 import {
   MAX_ACTIONS_PER_SECOND,
   clientMessageSchema,
@@ -28,6 +28,7 @@ import type { AuthContext } from "../auth/auth.types.js";
 import { API_ENV, type ApiEnv } from "../config/env.js";
 import { PRISMA, type Database } from "../infra/prisma.module.js";
 import { REDIS } from "../infra/redis.module.js";
+import { appendAction } from "./action-stream.js";
 
 export const WS_PATH = "/ws";
 const MAX_MESSAGE_BYTES = 4 * 1024;
@@ -37,7 +38,6 @@ const MAX_BUFFERED_BYTES = 1024 * 1024;
 const SUBSCRIPTIONS_PER_SOCKET = 10;
 const SESSION_CACHE_MS = 1_000;
 /** Caps the action stream if no runtime is reading it; the log in Postgres is the record. */
-const STREAM_MAX_LENGTH = 200_000;
 
 interface Client {
   ws: WebSocket;
@@ -272,11 +272,13 @@ export class SessionGateway implements OnApplicationBootstrap, OnApplicationShut
       return;
     }
     const wallet = client.auth.wallet;
-    if (!(await this.isPlayer(sessionId, wallet))) {
+    if (!(await this.isPlayer(sessionId, wallet, info.game.id === ROUNDS_GAME_ID))) {
       this.error(
         client,
         "NOT_A_PLAYER",
-        "You did not join this game before it started",
+        info.game.id === ROUNDS_GAME_ID
+          ? "Join the game to play the next round"
+          : "You did not join this game before it started",
         sessionId,
         id,
       );
@@ -294,19 +296,7 @@ export class SessionGateway implements OnApplicationBootstrap, OnApplicationShut
       return;
     }
 
-    await this.redis.xadd(
-      sessionKeys.actions(sessionId),
-      "MAXLEN",
-      "~",
-      STREAM_MAX_LENGTH,
-      "*",
-      "player",
-      wallet,
-      "id",
-      id,
-      "action",
-      JSON.stringify(action.data),
-    );
+    await appendAction(this.redis, sessionId, wallet, id, action.data);
     this.send(client, { type: "received", sessionId, id });
   }
 
@@ -376,8 +366,11 @@ export class SessionGateway implements OnApplicationBootstrap, OnApplicationShut
     return info;
   }
 
-  /** The player list is fixed once a game runs, so it is loaded once per running session. */
-  private async isPlayer(sessionId: string, wallet: Address): Promise<boolean> {
+  /**
+   * The player list is loaded once per running session. Games played in rounds take joins
+   * while running, so for them a wallet missing from the list is looked up before refusing.
+   */
+  private async isPlayer(sessionId: string, wallet: Address, rounds: boolean): Promise<boolean> {
     let players = this.players.get(sessionId);
     if (!players) {
       const rows = await this.db.sessionParticipant.findMany({
@@ -387,7 +380,14 @@ export class SessionGateway implements OnApplicationBootstrap, OnApplicationShut
       players = new Set(rows.map((row) => row.wallet));
       this.players.set(sessionId, players);
     }
-    return players.has(wallet);
+    if (players.has(wallet)) return true;
+    if (!rounds) return false;
+    const row = await this.db.sessionParticipant.findUnique({
+      where: { sessionId_wallet: { sessionId, wallet } },
+      select: { wallet: true },
+    });
+    if (row) players.add(wallet);
+    return row !== null;
   }
 
   /** A token bucket per socket: MAX_ACTIONS_PER_SECOND, with that many in reserve. */

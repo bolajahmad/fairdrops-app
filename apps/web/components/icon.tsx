@@ -8,7 +8,9 @@ import {
   Minus,
   Plus,
   Scale,
+  Search,
   Send,
+  Repeat,
   Shuffle,
   Sparkles,
   Trophy,
@@ -66,11 +68,13 @@ const ICONS: Record<IconName, LucideIcon> = {
   sparkles: Sparkles,
   scale: Scale,
   trophy: Trophy,
+  repeat: Repeat,
   shuffle: Shuffle,
   chevron: ChevronDown,
   minus: Minus,
   plus: Plus,
   copy: Copy,
+  search: Search,
 };
 
 export function Icon({ name, size = 20, spin = false, className }: IconProps) {

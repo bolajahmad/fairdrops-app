@@ -5,8 +5,10 @@ import {
   SettlementsController,
 } from "./giveaways.controller.js";
 import { GiveawaysService } from "./giveaways.service.js";
+import { TokensModule } from "../tokens/tokens.module.js";
 
 @Module({
+  imports: [TokensModule],
   controllers: [GiveawaysController, SettlementsController, ClaimsController],
   providers: [GiveawaysService],
 })

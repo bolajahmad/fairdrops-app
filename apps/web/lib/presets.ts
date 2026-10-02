@@ -1,16 +1,29 @@
-import {
-  approvedTokens,
-  BPS_DENOMINATOR,
-  findChain,
-  type RewardPolicy,
-  type Token,
-} from "@fairdrops/shared";
+import { BPS_DENOMINATOR, type RewardPolicy } from "@fairdrops/shared";
 
 export type AudienceId = "community" | "followers" | "custom";
 /** How the prize is shared. `random` is a weighted split drawn when the host publishes. */
 export type RewardMode = "balanced" | "weighted" | "random";
 export type GameChoice = "auto" | "pick";
-export type StartChoice = "soon" | "tonight" | "pick";
+export type StartChoice = "soon" | "later" | "evening" | "pick";
+/** One game everyone plays once, or rounds until every prize is won. */
+export type PlayMode = "once" | "rounds";
+
+/** The per-person win limit hosts start from. */
+export const DEFAULT_MAX_WINS = 3;
+/** Seconds between rounds, when people can join or leave. */
+export const DEFAULT_ROUND_BREAK_SECONDS = 10;
+
+/** How long a rounds giveaway keeps playing, in minutes: the host's choices. */
+export const PLAY_TIMES = [15, 30, 60, 180] as const;
+export type PlayMinutes = (typeof PLAY_TIMES)[number];
+export const DEFAULT_PLAY_MINUTES: PlayMinutes = 30;
+
+/** "15 min", "1 hour", "3 hours". */
+export function playTimeLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = minutes / 60;
+  return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+}
 
 export interface AudiencePreset {
   id: AudienceId;
@@ -22,35 +35,10 @@ export interface AudiencePreset {
 
 /** Client defaults for the host wizard. Expected to change often, so they live here only. */
 export const audiencePresets: readonly AudiencePreset[] = [
-  { id: "community", winners: 10, reward: "weighted", when: "tonight", pool: "250" },
+  { id: "community", winners: 10, reward: "weighted", when: "evening", pool: "250" },
   { id: "followers", winners: 3, reward: "balanced", when: "soon", pool: "100" },
   { id: "custom", winners: 5, reward: "balanced", when: "pick", pool: "50" },
 ];
-
-/** A token a host can give away. Picking one also picks its network. */
-export interface PrizeToken extends Token {
-  key: string;
-  chainName: string;
-}
-
-export const prizeTokens: readonly PrizeToken[] = approvedTokens
-  .map((token) => {
-    const chain = findChain(token.chainId);
-    return chain && chain.environment === "testnet"
-      ? { ...token, key: `${token.chainId}:${token.address}`, chainName: chain.name }
-      : null;
-  })
-  .filter((token): token is PrizeToken => token !== null)
-  // Stablecoins first: most hosts think in dollars.
-  .sort((a, b) => Number(b.symbol === "USDC") - Number(a.symbol === "USDC"));
-
-export const DEFAULT_TOKEN_KEY =
-  prizeTokens.find((token) => token.symbol === "USDC" && token.chainId === 84532)?.key ??
-  prizeTokens[0]!.key;
-
-export function findPrizeToken(key: string): PrizeToken {
-  return prizeTokens.find((token) => token.key === key) ?? prizeTokens[0]!;
-}
 
 /** Shares fall in a straight line from first place to last. */
 export function weightedBps(places: number): number[] {
@@ -84,12 +72,31 @@ export function rewardPolicy(mode: RewardMode, winners: number, drawn: number[])
   return { kind: "weighted", bps: weightedBps(winners), minScore: 1 };
 }
 
-export function startFromChoice(choice: StartChoice, picked: string): Date {
-  const now = Date.now();
-  if (choice === "soon") return new Date(now + 15 * 60 * 1000);
+const EVENING_HOUR = 20;
+const EVENING_MINUTE = 30;
+/** The evening slot is only offered for today while it's at least this far away. */
+const EVENING_LEAD_MS = 60 * 60 * 1000;
+
+/** 20:30 today if that's still an hour away, otherwise 20:30 tomorrow. */
+export function eveningSlot(now = new Date()): { at: Date; tomorrow: boolean } {
+  const at = new Date(now);
+  at.setHours(EVENING_HOUR, EVENING_MINUTE, 0, 0);
+  if (at.getTime() - now.getTime() >= EVENING_LEAD_MS) return { at, tomorrow: false };
+  at.setDate(at.getDate() + 1);
+  return { at, tomorrow: true };
+}
+
+/** A datetime-local value (YYYY-MM-DDTHH:mm) in the viewer's time zone. */
+export function toLocalInput(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** When the giveaway starts for a choice, always in the future. */
+export function startFromChoice(choice: StartChoice, picked: string, now = new Date()): Date {
+  if (choice === "soon") return new Date(now.getTime() + 15 * 60 * 1000);
+  if (choice === "later") return new Date(now.getTime() + 2 * 60 * 60 * 1000);
   if (choice === "pick" && picked) return new Date(picked);
-  const tonight = new Date();
-  tonight.setHours(20, 30, 0, 0);
-  if (tonight.getTime() < now + 2 * 60 * 1000) tonight.setDate(tonight.getDate() + 1);
-  return tonight;
+  if (choice === "pick") return new Date(now.getTime() + 60 * 60 * 1000);
+  return eveningSlot(now).at;
 }

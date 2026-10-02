@@ -32,7 +32,7 @@ describe("tokens", () => {
     const usdc = toTokenView(
       findApprovedToken(11155111, "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238")!,
     );
-    expect(usdc).toMatchObject({ approved: true, native: false, warning: null });
+    expect(usdc).toMatchObject({ approved: true, trust: "verified", native: false, warning: null });
 
     const unknown = toTokenView({
       chainId: 11155111,
@@ -41,6 +41,53 @@ describe("tokens", () => {
       name: "USD Coin",
       decimals: 6,
     });
-    expect(unknown).toMatchObject({ approved: false, warning: UNAPPROVED_TOKEN_WARNING });
+    // Same symbol as the listed USDC on Sepolia: a lookalike, with a pointed warning.
+    expect(unknown).toMatchObject({ approved: false, trust: "unverified" });
+    expect(unknown.warning).toContain("0x1c7d4b196cb0c7b01d743fbc6116a902379c7238");
+
+    const other = toTokenView({
+      chainId: 11155111,
+      address: "0x000000000000000000000000000000000000beef",
+      symbol: "HUSDC",
+      name: "Hello USD",
+      decimals: 6,
+    });
+    expect(other).toMatchObject({ trust: "unverified", warning: UNAPPROVED_TOKEN_WARNING });
+    expect(
+      toTokenView({ ...other, address: "0x000000000000000000000000000000000000beef" }, true).trust,
+    ).toBe("listed");
+  });
+
+  it("verifies the test tokens added for the Sepolia and Base Sepolia demos", () => {
+    expect(findApprovedToken(11155111, "0xd077A400968890Eacc75cdc901F0356c943e4fDb")).toMatchObject(
+      {
+        symbol: "USD₮",
+        decimals: 6,
+      },
+    );
+    expect(findApprovedToken(84532, "0x52B6df3c98225F040b9B89A07180E7Bc6ba34f87")).toMatchObject({
+      symbol: "MNEE",
+      decimals: 18,
+    });
+    // Same address on both chains, two separate tokens.
+    for (const chainId of [11155111, 84532]) {
+      expect(findApprovedToken(chainId, "0xA801da100bF16D07F668F4A49E1f71fc54D05177")?.symbol).toBe(
+        "USD.h",
+      );
+    }
+  });
+
+  it("stores addresses lowercased", () => {
+    const view = toTokenView({
+      chainId: 84532,
+      address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      symbol: "USDC",
+      name: "USDC",
+      decimals: 6,
+    });
+    expect(view).toMatchObject({
+      address: "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+      trust: "verified",
+    });
   });
 });

@@ -2,6 +2,7 @@ export {
   FairDrops,
   type FairDropsOptions,
   type GiveawayListParams,
+  type TokenSearchParams,
   type SignInOptions,
 } from "./client.js";
 export { FairDropsError } from "./errors.js";

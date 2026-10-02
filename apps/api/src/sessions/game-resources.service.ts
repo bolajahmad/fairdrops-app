@@ -1,7 +1,19 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { GameResource, Prisma } from "@fairdrops/db";
-import { findResourceKind, hashJson, resourceKinds } from "@fairdrops/game-kit";
-import type { CreateGameResourceRequest, GameResourceView, Hex } from "@fairdrops/shared";
+import {
+  builtinQuizBanks,
+  findResourceKind,
+  hashJson,
+  quizBankKind,
+  quizBankSchema,
+  resourceKinds,
+} from "@fairdrops/game-kit";
+import type {
+  CreateGameResourceRequest,
+  GameResourceView,
+  Hex,
+  QuizBankView,
+} from "@fairdrops/shared";
 import { z } from "zod";
 import { AppException } from "../common/app.exception.js";
 import { PRISMA, type Database } from "../infra/prisma.module.js";
@@ -17,6 +29,30 @@ function toView(resource: GameResource): GameResourceView {
 
 @Injectable()
 export class GameResourcesService {
+  /** Every question bank, built-ins first: names and sizes only, never the questions. */
+  async quizBanks(): Promise<QuizBankView[]> {
+    const rows = await this.db.gameResource.findMany({
+      where: { kind: quizBankKind.kind },
+      select: { hash: true, content: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const builtin = new Set(builtinQuizBanks.map((entry) => entry.hash));
+    return rows
+      .map((row) => {
+        const bank = quizBankSchema.safeParse(row.content);
+        return bank.success
+          ? {
+              hash: row.hash as Hex,
+              name: bank.data.name,
+              questions: bank.data.questions.length,
+              builtin: builtin.has(row.hash as Hex),
+            }
+          : null;
+      })
+      .filter((bank): bank is QuizBankView => bank !== null)
+      .sort((a, b) => Number(b.builtin) - Number(a.builtin));
+  }
+
   constructor(@Inject(PRISMA) private readonly db: Database) {}
 
   /** Stores validated content under its hash. Uploading the same content again is a no-op. */

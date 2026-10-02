@@ -50,6 +50,8 @@ export function giveawayStatus(
   giveaway: Pick<GiveawayView, "phase" | "session">,
   options: Parameters<typeof statusFromPhase>[1] = {},
 ): PlayerStatus | null {
+  // Ending with nobody playing or winning isn't a failure: the prize simply goes back.
+  if (giveaway.session?.noWinners) return "unwon";
   if (giveaway.session?.status === "FAILED") return "failed";
   if (giveaway.session?.status === "CANCELLED") return "cancelled";
   return statusFromPhase(giveaway.phase, options);
@@ -101,10 +103,15 @@ export function placeAmounts(prize: bigint, rewards: RewardPolicy): bigint[] {
   return rewards.bps.map((bps) => (prize * BigInt(bps)) / 10_000n);
 }
 
-export function tokenDecimals(giveaway: Pick<GiveawayView, "tokenInfo">): number {
-  return giveaway.tokenInfo?.decimals ?? 18;
+/**
+ * Decimals for display. The API always sends `tokenInfo` unless the token could not be read at
+ * all; then amounts are shown in the token's raw units (0 decimals), never with a guessed scale.
+ * Never use this to build a transaction: require `tokenInfo` instead.
+ */
+export function tokenDecimals(item: Pick<GiveawayView, "tokenInfo">): number {
+  return item.tokenInfo?.decimals ?? 0;
 }
 
-export function tokenSymbol(giveaway: Pick<GiveawayView, "tokenInfo">): string {
-  return giveaway.tokenInfo?.symbol ?? "TOKEN";
+export function tokenSymbol(item: Pick<GiveawayView, "tokenInfo" | "token">): string {
+  return item.tokenInfo?.symbol ?? `units of ${shortenWallet(item.token)}`;
 }

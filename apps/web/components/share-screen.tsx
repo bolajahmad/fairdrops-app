@@ -3,11 +3,12 @@
 import type { GiveawayView, Hex } from "@fairdrops/shared";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/button";
-import { Icon } from "@/components/icon";
 import { Logo } from "@/components/logo";
 import { Shell, StickyBar } from "@/components/shell";
 import { browserFairDrops } from "@/lib/fairdrops";
+import { chainName } from "@/lib/tokens";
 import { formatTokenAmount, formatWhen, tokenDecimals, tokenSymbol } from "@/lib/format";
 
 export function ShareScreen({
@@ -38,7 +39,7 @@ export function ShareScreen({
   const name = giveaway?.metadata?.title ?? title;
   const game = giveaway?.metadata?.game.id;
   const summary = giveaway
-    ? `${formatTokenAmount(giveaway.prize, tokenDecimals(giveaway))} ${tokenSymbol(giveaway)} · starts ${formatWhen(giveaway.startTime)}`
+    ? `${formatTokenAmount(giveaway.prize, tokenDecimals(giveaway))} ${tokenSymbol(giveaway)} on ${chainName(giveaway.chainId)} · starts ${formatWhen(giveaway.startTime)}`
     : "Players can join from this link.";
   const text = `Play ${name} on FairDrops and win a share of the prize`;
 
@@ -55,7 +56,8 @@ export function ShareScreen({
   return (
     <Shell>
       <div className="mx-auto flex w-full max-w-[560px] flex-1 flex-col gap-8">
-        <header className="flex flex-col gap-2">
+        <BackLink fallback="/host" label="Your giveaways" />
+        <header className="-mt-4 flex flex-col gap-2">
           <span className="overline text-lagoon">Your giveaway is live</span>
           <h1 className="display-l m-0">Now share it</h1>
           <p className="m-0 text-ink-muted">
@@ -122,12 +124,6 @@ export function ShareScreen({
             <Button size="lg" block variant="secondary" iconAfter="arrow">
               Manage giveaway
             </Button>
-          </Link>
-          <Link
-            href="/host"
-            className="hidden items-center gap-1 text-sm font-semibold text-ink-muted md:inline-flex"
-          >
-            <Icon name="back" size={16} /> All your giveaways
           </Link>
         </StickyBar>
       </div>

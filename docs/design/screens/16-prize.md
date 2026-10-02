@@ -11,7 +11,9 @@ Everything editable on one screen. The split preview updates as you type.
 ## Layout, top to bottom
 
 - Field "Name", prefilled.
-- Field "Prize pool": decimal input, `USDC` suffix, hint "You have 540.00 USDC". A token picker comes later.
+- **Prize, amount and token in one box:** the amount on the left (Bricolage 800), the token on the right as a pill (token avatar with a network dot, symbol, chevron) that opens the token picker. Directly underneath, always: trust badge (Verified / Listed / Unverified), network, decimals, a short contract link, and "Balance 240 USDC" (tap to use it all) once a wallet is connected. The network is never chosen separately: it is the token's.
+- **Token picker sheet** ("Choose the prize token"): a search field (name, symbol or contract address), network chips (All networks plus each hostable network), a "Connect your wallet to see the tokens you hold" prompt, then **Your tokens** (held tokens with balances), then **All tokens** / **Matches** / **Found at that address**. Each row: avatar, symbol, trust badge, "name · network", balance. Empty: "No token matches. Paste the token's contract address to use any ERC-20."
+- **Unverified or listed token:** a flare notice under the prize box with the warning (a pointed one for lookalikes such as a second "USDC"), the full contract address, "View contract", and a required tick: "I've checked this is the LINK I mean. Players will see it's unverified." Next stays disabled until it is ticked.
 - Winners stepper: − / count / +, 1 to 50.
 - Segmented split: "Equal" / "Top gets more" (the `equal` / `weighted` reward policy).
 - Place preview: the top 3 as bars with amounts, then "+N more places".
@@ -30,7 +32,9 @@ Everything editable on one screen. The split preview updates as you type.
 ## Data
 
 - `prepareGiveaway(input)` from `@fairdrops/sdk/host` validates and builds the metadata; `InvalidGiveawayError` messages map to the field errors.
-- Token balance from the connected wallet.
+- Tokens: `fd.tokens.search({ q, chainId })` (symbol, name or a pasted address; unknown addresses are read from the chain once and cached) and `fd.tokens.get(chainId, address)`. Hostable networks come from `hostableChains(environment)`: deployed and indexed, so Polkadot Hub is not offered.
+- Balances: `balancesOf(owner, tokens)` from `@fairdrops/sdk/host`.
+- The picked token is kept whole (`TokenView`: chain, address, symbol, name, decimals, trust) through review and lock, so its context is never re-derived or lost.
 
 ## Navigation
 

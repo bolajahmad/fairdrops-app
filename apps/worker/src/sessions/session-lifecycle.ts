@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { GameSession, Prisma, SessionStatus } from "@fairdrops/db";
 import {
+  ROUNDS_GAME_ID,
   externalTranscriptSchema,
   transcriptHash,
   type ExternalTranscript,
@@ -8,6 +9,7 @@ import {
 } from "@fairdrops/game-kit";
 import {
   JOINABLE_SESSION_STATUSES,
+  NOBODY_JOINED,
   type Address,
   type Hex,
   type StandingView,
@@ -66,12 +68,21 @@ export class SessionLifecycle {
   /**
    * Starts play at the scheduled time. The session row is locked for the decision, and joining
    * takes a share lock on it, so no one can join between counting the players and starting.
+   *
+   * A game played in rounds starts even if nobody has joined yet: people can join between
+   * rounds, and it plays until the host's play time is up.
    */
   async start(sessionId: string, now = new Date()): Promise<SessionStatus | null> {
     const outcome = await this.db.$transaction(async (tx) => {
       const [session] = await tx.$queryRaw<
-        { status: SessionStatus; starts_at: Date; chain_id: number; giveaway_id: string }[]
-      >`SELECT status, starts_at, chain_id, giveaway_id FROM game_sessions
+        {
+          status: SessionStatus;
+          starts_at: Date;
+          chain_id: number;
+          giveaway_id: string;
+          game_id: string;
+        }[]
+      >`SELECT status, starts_at, chain_id, giveaway_id, game_id FROM game_sessions
         WHERE id = ${sessionId}::uuid FOR UPDATE`;
       if (!session || !PRE_START.includes(session.status)) return null;
       if (session.starts_at.getTime() > now.getTime()) return null;
@@ -95,8 +106,8 @@ export class SessionLifecycle {
           status: "FAILED",
           data: { failureReason: "The seed was not committed on-chain before the start" },
         };
-      } else if (players === 0) {
-        next = { status: "CANCELLED", data: { failureReason: "Nobody joined" } };
+      } else if (players === 0 && session.game_id !== ROUNDS_GAME_ID) {
+        next = { status: "CANCELLED", data: { failureReason: NOBODY_JOINED } };
       } else {
         next = { status: "RUNNING", data: { startedAt: now } };
       }
@@ -196,10 +207,14 @@ export class SessionLifecycle {
     return settled;
   }
 
-  /** Players in the order transcripts list them: lowercase and sorted. */
-  async players(sessionId: string): Promise<Address[]> {
+  /**
+   * Players in the order transcripts list them: lowercase and sorted. With `startedAt`, only
+   * those who joined before the start; games played in rounds take joins later, which their
+   * action log records instead.
+   */
+  async players(sessionId: string, startedAt?: Date | null): Promise<Address[]> {
     const rows = await this.db.sessionParticipant.findMany({
-      where: { sessionId },
+      where: { sessionId, ...(startedAt ? { joinedAt: { lte: startedAt } } : {}) },
       select: { wallet: true },
     });
     // Sorted here rather than by the database, whose order depends on its collation.

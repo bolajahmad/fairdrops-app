@@ -34,11 +34,13 @@ export type IconName =
   | "sparkles"
   | "scale"
   | "trophy"
+  | "repeat"
   | "shuffle"
   | "chevron"
   | "minus"
   | "plus"
-  | "copy";
+  | "copy"
+  | "search";
 
 export type GameKind = "dice" | "quiz" | "tap" | "custom";
 
@@ -52,7 +54,8 @@ export type PlayerStatus =
   | "claimed"
   | "ended"
   | "cancelled"
-  | "failed";
+  | "failed"
+  | "unwon";
 
 export interface IconProps {
   name: IconName;
@@ -123,6 +126,10 @@ export interface GiveawayCardData {
   pool: string;
   symbol: string;
   winners: number;
+  /** The prize token's network, always shown with the amount. */
+  network?: string;
+  /** Shown as a badge when the prize token isn't verified. */
+  trust?: "verified" | "listed" | "unverified";
   /** Omitted when unknown, rather than shown as a dash. */
   players?: string;
   status: PlayerStatus;

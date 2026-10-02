@@ -11,9 +11,11 @@ import type {
   PaginationQuery,
   PayoutTreeDump,
   SettlementView,
+  TokenView,
 } from "@fairdrops/shared";
 import { AppException } from "../common/app.exception.js";
 import { PRISMA, type Database } from "../infra/prisma.module.js";
+import { TokensService } from "../tokens/tokens.service.js";
 import { toClaimView, toEventView, toGiveawayView, toSettlementView } from "./giveaways.mapper.js";
 
 interface ListCursor {
@@ -55,7 +57,14 @@ const settlementInclude = {
  */
 @Injectable()
 export class GiveawaysService {
-  constructor(@Inject(PRISMA) private readonly db: Database) {}
+  constructor(
+    @Inject(PRISMA) private readonly db: Database,
+    private readonly tokens: TokensService,
+  ) {}
+
+  private tokenOf(tokens: Map<string, TokenView | null>, chainId: number, address: string) {
+    return tokens.get(`${chainId}:${address.toLowerCase()}`) ?? null;
+  }
 
   /** Newest first, across chains. */
   async list(query: GiveawayListQuery): Promise<Page<GiveawayView>> {
@@ -75,15 +84,20 @@ export class GiveawaysService {
     }
     const rows = await this.db.giveaway.findMany({
       where,
-      include: { session: { select: { id: true, status: true } } },
+      include: { session: { select: { id: true, status: true, failureReason: true } } },
       orderBy: [{ createdAt: "desc" }, { chainId: "asc" }, { giveawayId: "asc" }],
       take: query.limit + 1,
     });
     const now = new Date();
     const page = rows.slice(0, query.limit);
     const last = page.at(-1);
+    const tokens = await this.tokens.many(
+      page.map((row) => ({ chainId: row.chainId, address: row.token })),
+    );
     return {
-      items: page.map((row) => toGiveawayView(row, row.session, now)),
+      items: page.map((row) =>
+        toGiveawayView(row, row.session, this.tokenOf(tokens, row.chainId, row.token), now),
+      ),
       nextCursor:
         rows.length > query.limit && last
           ? encodeCursor({
@@ -98,10 +112,15 @@ export class GiveawaysService {
   async get(chainId: number, giveawayId: Hex): Promise<GiveawayView> {
     const giveaway = await this.db.giveaway.findUnique({
       where: { chainId_giveawayId: { chainId, giveawayId } },
-      include: { session: { select: { id: true, status: true } } },
+      include: { session: { select: { id: true, status: true, failureReason: true } } },
     });
     if (!giveaway) throw AppException.notFound("No such giveaway (it may not be indexed yet)");
-    return toGiveawayView(giveaway, giveaway.session);
+    const tokens = await this.tokens.many([{ chainId, address: giveaway.token }]);
+    return toGiveawayView(
+      giveaway,
+      giveaway.session,
+      this.tokenOf(tokens, chainId, giveaway.token),
+    );
   }
 
   /** The giveaway's on-chain activity, oldest first. */
@@ -187,7 +206,14 @@ export class GiveawaysService {
         },
       },
     });
-    return toClaimView(payout, settlement, giveaway, wallet?.wallet ?? null);
+    const tokens = await this.tokens.many([{ chainId, address: giveaway.token }]);
+    return toClaimView(
+      payout,
+      settlement,
+      giveaway,
+      wallet?.wallet ?? null,
+      this.tokenOf(tokens, chainId, giveaway.token),
+    );
   }
 
   /** Every prize won by any wallet linked to the user, newest first. */
@@ -206,6 +232,12 @@ export class GiveawaysService {
       where: { account: { in: payouts.map((p) => p.account) } },
     });
     const now = new Date();
+    const tokens = await this.tokens.many(
+      payouts.map((payout) => ({
+        chainId: payout.settlement.session.giveaway.chainId,
+        address: payout.settlement.session.giveaway.token,
+      })),
+    );
     return payouts.map((payout) => {
       const { giveaway } = payout.settlement.session;
       const redirect = redirects.find(
@@ -214,7 +246,14 @@ export class GiveawaysService {
           r.contractAddress === giveaway.contractAddress &&
           r.account === payout.account,
       );
-      return toClaimView(payout, payout.settlement, giveaway, redirect?.wallet ?? null, now);
+      return toClaimView(
+        payout,
+        payout.settlement,
+        giveaway,
+        redirect?.wallet ?? null,
+        this.tokenOf(tokens, giveaway.chainId, giveaway.token),
+        now,
+      );
     });
   }
 }

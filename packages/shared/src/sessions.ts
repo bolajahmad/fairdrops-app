@@ -14,6 +14,24 @@ export const JOINABLE_SESSION_STATUSES = ["SCHEDULED", "SEED_COMMITTED", "LOBBY"
 /** Statuses after the game is over, when the seed and transcript are public. */
 export const ENDED_SESSION_STATUSES = ["SETTLING", "FINALIZING", "FINALIZED"] as const;
 
+/** Why a game nobody played, or nobody won, ended. Not failures: the host gets the prize back. */
+export const NOBODY_JOINED = "Nobody joined";
+export const NOBODY_WON = "Nobody scored enough to win a prize";
+
+/**
+ * Whether a session ended without anyone winning: nobody joined, or nobody scored enough. The
+ * giveaway then simply returns the whole prize to the host; nothing went wrong.
+ */
+export function endedWithoutWinners(session: {
+  status: string;
+  failureReason: string | null;
+}): boolean {
+  return (
+    (session.status === "CANCELLED" && session.failureReason === NOBODY_JOINED) ||
+    (session.status === "FAILED" && session.failureReason === NOBODY_WON)
+  );
+}
+
 export const standingViewSchema = z.object({
   player: addressSchema,
   score: z.number().int(),

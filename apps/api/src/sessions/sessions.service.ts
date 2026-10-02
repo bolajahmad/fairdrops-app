@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { GameSession, SessionStatus } from "@fairdrops/db";
-import { hashJson } from "@fairdrops/game-kit";
+import { ROUNDS_GAME_ID, hashJson } from "@fairdrops/game-kit";
 import {
   ENDED_SESSION_STATUSES,
   JOINABLE_SESSION_STATUSES,
@@ -16,12 +16,16 @@ import {
   type SessionView,
   type StandingView,
 } from "@fairdrops/shared";
+import { Redis } from "ioredis";
+import { randomUUID } from "node:crypto";
 import { verifyTypedData } from "viem";
 import type { AuthContext } from "../auth/auth.types.js";
 import { AppException } from "../common/app.exception.js";
 import { isUniqueViolation } from "../common/prisma-errors.js";
 import { API_ENV, type ApiEnv } from "../config/env.js";
 import { PRISMA, type Database } from "../infra/prisma.module.js";
+import { REDIS } from "../infra/redis.module.js";
+import { appendAction } from "./action-stream.js";
 
 const ZERO_HASH: Hex = `0x${"0".repeat(64)}`;
 const JOINABLE: SessionStatus[] = [...JOINABLE_SESSION_STATUSES];
@@ -55,6 +59,7 @@ export class SessionsService {
   constructor(
     @Inject(PRISMA) private readonly db: Database,
     @Inject(API_ENV) private readonly env: ApiEnv,
+    @Inject(REDIS) private readonly redis: Redis,
   ) {}
 
   async get(id: string): Promise<SessionView> {
@@ -92,15 +97,29 @@ export class SessionsService {
    * Adds the signed-in wallet to a session before it starts. The session row is share-locked
    * for the check and the insert; the worker locks it exclusively to start the game, so a join
    * either lands before the start or is refused, never in between.
+   *
+   * A game played in rounds can also be joined while it runs: the join is then logged as an
+   * action, and the player is in every round that starts after it. Joining again after leaving
+   * works the same way.
    */
   async join(auth: AuthContext, id: string): Promise<ParticipantView> {
+    let running = false;
     const participant = await this.db.$transaction(async (tx) => {
       const [session] = await tx.$queryRaw<
-        { status: SessionStatus; starts_at: Date; chain_id: number; giveaway_id: string }[]
-      >`SELECT status, starts_at, chain_id, giveaway_id FROM game_sessions
+        {
+          status: SessionStatus;
+          starts_at: Date;
+          chain_id: number;
+          giveaway_id: string;
+          game_id: string;
+        }[]
+      >`SELECT status, starts_at, chain_id, giveaway_id, game_id FROM game_sessions
         WHERE id = ${id}::uuid FOR SHARE`;
       if (!session) throw AppException.notFound("No such session");
-      if (!JOINABLE.includes(session.status) || session.starts_at.getTime() <= Date.now()) {
+      running = session.status === "RUNNING" && session.game_id === ROUNDS_GAME_ID;
+      const beforeStart =
+        JOINABLE.includes(session.status) && session.starts_at.getTime() > Date.now();
+      if (!beforeStart && !running) {
         throw AppException.conflict(`This game can no longer be joined (${session.status})`);
       }
 
@@ -127,6 +146,9 @@ export class SessionsService {
         data: { sessionId: id, wallet: auth.wallet, userId: auth.userId },
       });
     });
+    if (running) {
+      await appendAction(this.redis, id, auth.wallet, `join-${randomUUID()}`, { roster: "join" });
+    }
     return { wallet: participant.wallet as Address, joinedAt: participant.joinedAt.toISOString() };
   }
 

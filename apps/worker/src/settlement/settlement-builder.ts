@@ -4,9 +4,11 @@ import {
   computeSettlement,
   settlementDigest,
   settlementMessage,
+  type AwardedPlace,
   type RankedPlayer,
 } from "@fairdrops/settlement";
 import {
+  NOBODY_WON,
   giveawayMetadataSchema,
   rewardPolicyOf,
   rewardPolicyProblem,
@@ -61,13 +63,20 @@ export class SettlementBuilder {
       return fail("The seed commitment on-chain is not the session's");
     }
 
+    // Games played in rounds award places themselves; the transcript records them.
+    const transcript = await this.db.sessionTranscript.findUnique({
+      where: { sessionId },
+      select: { content: true },
+    });
+    const awards = (transcript?.content as { awards?: AwardedPlace[] } | undefined)?.awards;
     const computed = computeSettlement({
       giveawayId,
       ranking: session.ranking as unknown as RankedPlayer[],
+      awards,
       policy,
       prize: onchain.prize,
     });
-    if (!computed) return fail("Nobody scored enough to win a prize");
+    if (!computed) return fail(NOBODY_WON);
 
     const message = settlementMessage(
       giveawayId,

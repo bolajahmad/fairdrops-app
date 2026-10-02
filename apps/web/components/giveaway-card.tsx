@@ -4,6 +4,7 @@ import { Countdown } from "./countdown";
 import { Icon } from "./icon";
 import { PrizeAmount } from "./prize-amount";
 import { StatusChip } from "./status-chip";
+import { TrustBadge } from "./trust-badge";
 import type { GameKind, GiveawayCardProps } from "./types";
 
 const GAME_NAMES: Record<GameKind, string> = {
@@ -31,11 +32,21 @@ export function GiveawayCard({ giveaway, href = "#", onClick }: GiveawayCardProp
       <h3 className="title-m m-0 line-clamp-2 text-balance [overflow-wrap:anywhere]">
         {giveaway.title}
       </h3>
-      <div className="flex items-baseline justify-between gap-3">
-        <PrizeAmount amount={giveaway.pool} symbol={giveaway.symbol} size="l" />
-        <span className="caption shrink-0 text-ink-muted">
-          {giveaway.winners} {giveaway.winners === 1 ? "winner" : "winners"}
-        </span>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-baseline justify-between gap-3">
+          <PrizeAmount amount={giveaway.pool} symbol={giveaway.symbol} size="l" />
+          <span className="caption shrink-0 text-ink-muted">
+            {giveaway.winners} {giveaway.winners === 1 ? "winner" : "winners"}
+          </span>
+        </div>
+        {giveaway.network || (giveaway.trust && giveaway.trust !== "verified") ? (
+          <span className="caption flex flex-wrap items-center gap-2 text-ink-muted">
+            {giveaway.network ? <span>on {giveaway.network}</span> : null}
+            {giveaway.trust && giveaway.trust !== "verified" ? (
+              <TrustBadge trust={giveaway.trust} />
+            ) : null}
+          </span>
+        ) : null}
       </div>
       <div className="flex items-center gap-3 border-t border-line pt-4 text-sm text-ink-muted">
         {game ? (
@@ -54,7 +65,10 @@ export function GiveawayCard({ giveaway, href = "#", onClick }: GiveawayCardProp
             {giveaway.players}
           </span>
         ) : null}
-        {giveaway.seconds !== undefined ? (
+        {giveaway.seconds !== undefined &&
+        (giveaway.status === "upcoming" ||
+          giveaway.status === "live" ||
+          giveaway.status === "ending") ? (
           <span className="ml-auto">
             <Countdown
               seconds={giveaway.seconds}

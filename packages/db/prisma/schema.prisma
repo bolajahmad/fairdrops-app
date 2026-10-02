@@ -315,6 +315,30 @@ model PayoutWallet {
   @@map("payout_wallets")
 }
 
+// Tokens
+//
+// Name, symbol and decimals of every ERC-20 a giveaway has used or a host has looked up, read
+// from the token contract once and kept, so amounts are never shown without them. Tokens on
+// FairDrops' own list live in code (@fairdrops/shared) and are not stored here.
+
+model Token {
+  chainId   Int      @map("chain_id")
+  /// Lowercase.
+  address   String   @db.Char(42)
+  symbol    String   @db.VarChar(32)
+  name      String   @db.VarChar(64)
+  decimals  Int      @db.SmallInt
+  /// On a public token list FairDrops imports (trust "listed"); otherwise "unverified".
+  listed    Boolean  @default(false)
+  /// "chain" when read from the contract, otherwise the token list's name.
+  source    String   @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@id([chainId, address])
+  @@index([chainId, symbol])
+  @@map("tokens")
+}
+
 // Game sessions
 //
 // One session per giveaway: the game played for it. The worker creates and runs sessions; the

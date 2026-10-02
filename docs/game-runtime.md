@@ -279,6 +279,57 @@ the players and the result:
 FairDrops cannot replay an external game. Its guarantees are that the result came from the
 registered key, covers only players who joined before the start, and cannot change once settled.
 
+## Rounds
+
+A giveaway can play in rounds instead of one game: its metadata carries a `rounds` block next to
+`game` and `rewards`.
+
+```json
+"rounds": {
+  "winnersPerRound": 3,
+  "playSeconds": 1800,
+  "cooldownSeconds": 10,
+  "maxWinsPerPlayer": 3,
+  "next": [{ "id": "quiz", "version": "1.0.0", "config": { "bank": "0x…" } }]
+}
+```
+
+- **It runs for the host's play time.** Rounds start back to back, with a break between them, for
+  `playSeconds` from the giveaway's start; every round must end within it. The game ends early
+  only once every paid place is won.
+- **It never cancels for lack of players.** A rounds session starts on time even if nobody has
+  joined: people can join between rounds. When the play time is up, whatever is unwon goes back
+  to the host. If nobody won anything, the whole prize does.
+- **The rotation.** Round `r` plays `[game, ...next][r % length]`. Only hosted FairDrops games can
+  take part; an external game reports its own scores and always runs on its own.
+- **Places.** Each round hands the next `winnersPerRound` paid places to its best players who scored
+  at least `minScore`, skipping anyone at `maxWinsPerPlayer`. Places a round leaves unfilled carry
+  over to the next round.
+- **Repeat winners.** A player can hold several places. They are paid once, after the last round:
+  the payout tree holds each account once, with the sum of its places.
+- **Joining and leaving.** Between rounds, and during a round for the next one, people can join
+  (`POST /sessions/:id/join` works while a rounds session runs) or sit out (the action
+  `{ "roster": "leave" }`). Both are logged in the action log like any other action. A round's
+  players are those on the roster just before it starts, so a replay builds the same rounds.
+- **One session, one seed, one transcript.** `sessionGameOf(metadata, maxWinners)` in
+  `@fairdrops/game-kit` turns the metadata into the `rounds` hosted game, which runs everything in
+  one session. Each round draws from its own stream of the committed seed (`round/<r>`). The
+  transcript records the paid places in order as `awards`; replaying checks them, and settlement
+  pays them instead of the ranking.
+- **Top-ups.** The contract accepts `addFunds` only before the start, so the prize can't change
+  mid-game.
+
+The SDK's `prepareGiveaway` rejects rounds whose settings a game doesn't accept, a play time
+shorter than one round, or a play time that would not end at least 15 minutes before the finalize
+deadline. The web app sets the deadline a day after the play time ends.
+
+### Ending without winners
+
+A giveaway that ends with nobody playing (`Nobody joined`) or nobody scoring enough (`Nobody scored
+enough to win a prize`) has not failed: the whole prize goes back to the host. `GiveawayView.session.noWinners`
+is true for these (`endedWithoutWinners` in `@fairdrops/shared`), and the app shows "No winners"
+rather than "Cancelled" or "Void".
+
 ## Transcripts
 
 When a game ends, its transcript is stored in `session_transcripts` and served unchanged by

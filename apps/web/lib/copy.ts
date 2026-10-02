@@ -80,6 +80,11 @@ export const create = {
     amount: "Prize",
     token: "Paid in",
     runsOn: (chain: string) => `Runs on ${chain}. We pick the network from the token.`,
+    unverifiedTitle: "FairDrops hasn't verified this token",
+    listedTitle: "FairDrops hasn't reviewed this token",
+    viewContract: "View contract",
+    acknowledge: (symbol: string) =>
+      `I've checked this is the ${symbol} I mean. Players will see it's unverified.`,
     winners: "Winners",
     fewer: "Fewer winners",
     more: "More winners",
@@ -105,30 +110,100 @@ export const create = {
     builtIn: "FairDrops games",
     yours: "Your and partner games",
     noneYours: "Games you register under Developers show up here once approved.",
-    mix: "Mix with FairDrops games",
-    mixLater: "One game per giveaway for now. Mixing games is coming soon.",
+    multiHint: "Pick more than one to take turns: each round plays the next game.",
+    externalAlone: "Your own games run on their own, so they can't take turns in rounds yet.",
+    order: (n: number) => `Round order ${n}`,
     describeAuto:
       "We'll run Dice: each player rolls two dice three times within two minutes, and the highest total wins. It's fast, needs no knowledge, and works for any crowd.",
     describe: {
       dice: "Each player rolls two dice three times within two minutes. The highest total wins, and ties go to the best single roll.",
-      quiz: "Timed multiple-choice questions. Most right answers wins; ties go to whoever answered fastest. Needs a question bank, set in Advanced settings.",
+      quiz: "Timed multiple-choice questions, drawn at random from the question bank below. Most right answers wins; ties go to whoever answered fastest.",
     } as Record<string, string>,
+    questionsFrom: "Questions from",
+    bankHint: (total: number, asked: number, builtin: boolean) =>
+      `${asked} of ${total} questions, picked at random for each game${builtin ? " · by FairDrops" : ""}`,
     describeExternal: (name: string) =>
       `Players play ${name} in its own app. Its server reports the scores, and they're checked like any other game.`,
   },
-  start: { heading: "Starts", soon: "In 15 min", tonight: "Tonight 8:30", pick: "Pick a time" },
+  rounds: {
+    heading: "How winners are found",
+    once: { label: "One game", hint: "Everyone plays once and the leaderboard decides" },
+    rounds: { label: "Rounds", hint: "Back-to-back rounds until every prize is won" },
+    needed: "Several games take turns, so they're played in rounds.",
+    perRound: "Winners each round",
+    fewerPerRound: "Fewer winners each round",
+    morePerRound: "More winners each round",
+    maxWins: "Most prizes per person",
+    fewerWins: "Fewer prizes per person",
+    moreWins: "More prizes per person",
+    noLimit: "No limit",
+    breakSeconds: "Break between rounds (seconds)",
+    playsFor: "Plays for",
+    describe: (o: {
+      perRound: number;
+      winners: number;
+      rounds: number;
+      playTime: string;
+      games: string;
+      maxWins: number | null;
+      breakSeconds: number;
+    }) =>
+      `Rounds of ${o.games} for ${o.playTime} (${o.rounds} ${o.rounds === 1 ? "round" : "rounds"}), ${o.breakSeconds} seconds apart. Each round, the best ${o.perRound === 1 ? "player wins" : `${o.perRound} players win`} the next prizes. It ends early once all ${o.winners} are won; anything still unwon after ${o.playTime} comes back to you. ` +
+      (o.maxWins === null
+        ? "Anyone can win more than once. "
+        : `Nobody can win more than ${o.maxWins}. `) +
+      "It starts on time even if nobody has joined yet: people can join or leave between rounds.",
+    summary: (playTime: string, rounds: number, perRound: number) =>
+      `${playTime} · ${rounds} ${rounds === 1 ? "round" : "rounds"} · ${perRound} ${perRound === 1 ? "winner" : "winners"} each`,
+    tooShort: "That's shorter than one round. Pick a longer play time or a shorter game.",
+  },
+  start: {
+    heading: "Starts",
+    soon: "In 15 min",
+    later: "In 2 hours",
+    tonight: "Tonight",
+    tomorrow: "Tomorrow evening",
+    pick: "Pick a time",
+    at: (time: string) => `Starts ${time}`,
+    inTime: (span: string) => `in ${span}`,
+    pastPick: "Pick a time in the future, at least 2 minutes from now.",
+  },
   startAt: "Start time",
   advanced: {
     toggle: "Advanced settings",
     lead: "Fine-tune the game. The defaults suit most giveaways.",
     rolls: "Rolls per player",
     window: "Play time (seconds)",
-    bank: "Question bank id",
-    bankHint: "The id of a question bank uploaded for quizzes.",
     questions: "Questions",
     secondsPerQuestion: "Seconds per question",
     minScore: "Minimum score to win",
     minScoreHint: "Players below this never win, even if there are spare places.",
+  },
+  network: {
+    notConnected: (network: string) =>
+      `When you lock, your wallet opens on ${network}. Here's what it will ask, in order:`,
+    ready: (network: string) => `Your wallet is on ${network}. Ready to lock.`,
+    willSwitch: (from: string | null, to: string) =>
+      from
+        ? `Your wallet is on ${from}. When you lock, it'll ask to switch to ${to} first.`
+        : `When you lock, your wallet will ask to switch to ${to} first.`,
+    askConnect: "Connect your wallet",
+    askSwitch: (network: string) => `Switch to ${network}`,
+    askAllow: (symbol: string) => `Allow FairDrops to use your ${symbol}`,
+    askLock: "Lock the prize and publish",
+    progressTitle: "Locking your prize",
+    stepSwitch: (network: string) => `Switch your wallet to ${network}`,
+    stepAllow: (amount: string) => `Allow FairDrops to use ${amount}`,
+    stepLock: "Lock the prize and publish",
+    already: (network: string) => `Already on ${network}`,
+    alreadyAllowed: "Already allowed",
+    notNeeded: (symbol: string) => `Not needed for ${symbol}`,
+    confirmInWallet: "Confirm in your wallet",
+    waitingFor: (network: string) => `Waiting for ${network} to confirm…`,
+    stopped: "Stopped here. Nothing after this step happened.",
+    doneLabel: "Done",
+    next: "Next",
+    noteSwitch: (network: string) => `Approve the switch to ${network} in your wallet.`,
   },
   review: {
     heading: "Review and lock",
@@ -140,8 +215,12 @@ export const create = {
     rows: {
       prize: "Prize",
       network: "Network",
+      token: "Token",
+      contract: "Contract",
       winners: "Winners",
       game: "Game",
+      rounds: "Rounds",
+      maxWins: "Most prizes per person",
       starts: "Starts",
       leftovers: "Unclaimed prizes",
       leftoversValue: "Come back to you",
@@ -156,7 +235,7 @@ export const create = {
     locking: "Locking",
     confirm: "Confirm in your wallet when asked.",
     cancelled: "You cancelled in your wallet. Nothing was locked.",
-    needBank: "Quizzes need a question bank. Add its id in Advanced settings.",
+    needBank: "Pick where the quiz questions come from.",
   },
 } as const;
 

@@ -1,10 +1,18 @@
 import { z } from "zod";
 import { dice } from "./games/dice.js";
 import { quiz, quizBankKind } from "./games/quiz.js";
+import { createRoundsGame } from "./games/rounds.js";
 import type { AnyHostedGame, ResourceKind } from "./types.js";
 
+/** Games a round can play: every hosted game except rounds itself. */
+const roundGames: readonly AnyHostedGame[] = [quiz, dice];
+
+export const rounds = createRoundsGame((id, version) =>
+  roundGames.find((game) => game.id === id && game.version === version),
+);
+
 /** Games FairDrops can run. A giveaway can only use one that also has an approved definition. */
-export const hostedGames: readonly AnyHostedGame[] = [quiz, dice];
+export const hostedGames: readonly AnyHostedGame[] = [...roundGames, rounds];
 
 export const resourceKinds: readonly ResourceKind<unknown>[] = [quizBankKind];
 

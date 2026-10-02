@@ -8,13 +8,14 @@ import {
 import { setTimeout as sleep } from "node:timers/promises";
 import type { Giveaway, GameMode, Prisma, SessionStatus } from "@fairdrops/db";
 import { UNIQUE_VIOLATION, Prisma as PrismaNamespace } from "@fairdrops/db";
-import { findHostedGame } from "@fairdrops/game-kit";
+import { findHostedGame, sessionGameOf } from "@fairdrops/game-kit";
 import { JOINABLE_SESSION_STATUSES, giveawayMetadataSchema, type Hex } from "@fairdrops/shared";
 import { Redis } from "ioredis";
 import { z } from "zod";
 import { WORKER_ENV, type WorkerEnv } from "../config/env.js";
 import { PRISMA, type Database } from "../infra/prisma.module.js";
 import { REDIS } from "../infra/redis.module.js";
+import { BuiltinCatalog } from "./builtin-catalog.js";
 import { Lease } from "./lease.js";
 import { loadResources, resourceMap } from "./resources.js";
 import { SeedVault, seedCommitment } from "./seed-vault.js";
@@ -53,6 +54,7 @@ export class SessionPlanner implements OnApplicationBootstrap, BeforeApplication
     private readonly vault: SeedVault,
     private readonly lifecycle: SessionLifecycle,
     private readonly queues: SessionQueues,
+    private readonly catalog: BuiltinCatalog,
   ) {
     this.lease = new Lease(
       redis,
@@ -74,6 +76,10 @@ export class SessionPlanner implements OnApplicationBootstrap, BeforeApplication
 
   private async run(): Promise<void> {
     const { signal } = this.abort;
+    // Before the first plan, so giveaways using Dice or Quiz never fail as "Unknown game".
+    await this.catalog.sync().catch((error: unknown) => {
+      this.logger.warn(`Built-in catalog sync failed: ${(error as Error).message}`);
+    });
     while (!signal.aborted) {
       try {
         if ((await this.lease.renew()) || (await this.lease.acquire())) await this.tick();
@@ -157,7 +163,9 @@ export class SessionPlanner implements OnApplicationBootstrap, BeforeApplication
   private async createSession(giveaway: Giveaway, now: Date): Promise<boolean> {
     const metadata = giveawayMetadataSchema.safeParse(giveaway.metadata);
     if (!metadata.success) return false;
-    const plan = await this.plan(giveaway, metadata.data.game, now);
+    // With rounds, this is the rounds game over the host's rotation.
+    const game = sessionGameOf(metadata.data, giveaway.maxWinners);
+    const plan = await this.plan(giveaway, game, now);
     const seed = this.vault.generate();
 
     let sessionId: string;
@@ -166,8 +174,8 @@ export class SessionPlanner implements OnApplicationBootstrap, BeforeApplication
         data: {
           chainId: giveaway.chainId,
           giveawayId: giveaway.giveawayId,
-          gameId: metadata.data.game.id,
-          gameVersion: metadata.data.game.version,
+          gameId: game.id,
+          gameVersion: game.version,
           mode: plan.mode,
           status: plan.failure ? "FAILED" : "SCHEDULED",
           failureReason: plan.failure,

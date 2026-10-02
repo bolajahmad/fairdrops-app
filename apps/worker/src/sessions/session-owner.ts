@@ -48,7 +48,10 @@ interface Game {
   definition: AnyHostedGame;
   config: unknown;
   state: unknown;
+  /** Everyone who joined before the start, as the transcript lists them. */
   players: Address[];
+  /** Everyone who may act: the players, plus anyone who joined a game played in rounds. */
+  participants: Set<Address>;
   startAt: number;
   endAt: number;
   seed: Hex;
@@ -106,6 +109,12 @@ export class SessionOwner {
         if (!(await this.lease.renew())) return "lost";
         const now = await this.now();
         if (now >= game.endAt) break;
+        // Rounds end early once every prize is won.
+        const decided = game.definition.decidedAt?.(game.state, now) ?? null;
+        if (decided !== null) {
+          game.endAt = decided;
+          break;
+        }
 
         while (checkpoints.length > 0 && checkpoints[0]! <= now) {
           checkpoints.shift();
@@ -162,7 +171,7 @@ export class SessionOwner {
     }
     const config = definition.config.parse(session.config);
     const resources = await loadResources(db, definition.resources(config));
-    const players = await lifecycle.players(this.sessionId);
+    const players = await lifecycle.players(this.sessionId, session.startedAt);
     const seed = vault.decrypt(session.seedCiphertext);
     const startAt = session.startsAt.getTime();
     const state = definition.init({
@@ -203,6 +212,7 @@ export class SessionOwner {
       config,
       state,
       players,
+      participants: new Set(players),
       startAt,
       endAt: startAt + definition.duration(config),
       seed,
@@ -210,9 +220,23 @@ export class SessionOwner {
     };
   }
 
+  /**
+   * Whether a wallet may act. Games played in rounds take joins after the start, so a wallet
+   * missing from the starting list is looked up once; the gateway only forwards participants.
+   */
+  private async isParticipant(game: Game, player: Address): Promise<boolean> {
+    if (game.participants.has(player)) return true;
+    if (game.definition.awards === undefined) return false;
+    const row = await this.deps.db.sessionParticipant.findUnique({
+      where: { sessionId_wallet: { sessionId: this.sessionId, wallet: player } },
+      select: { wallet: true },
+    });
+    if (row) game.participants.add(player);
+    return row !== null;
+  }
+
   /** Sequences, logs and applies a batch of stream entries. */
   private async log(game: Game, entries: NonNullable<StreamEntries>): Promise<void> {
-    const players = new Set(game.players);
     const rows: Prisma.SessionActionCreateManyInput[] = [];
     const updates: PlayerUpdate[] = [];
     let last = this.cursor;
@@ -224,7 +248,7 @@ export class SessionOwner {
         const player = entry.player?.toLowerCase() as Address | undefined;
         const clientId = entry.id;
         // The gateway checks all of this; the runtime does not trust it to.
-        if (!player || !clientId || !players.has(player)) continue;
+        if (!player || !clientId || !(await this.isParticipant(game, player))) continue;
         const key = `${player}:${clientId}`;
         if (this.seen.has(key)) continue;
         const action = game.definition.action.safeParse(parseJson(entry.action));
@@ -313,6 +337,7 @@ export class SessionOwner {
       resources: game.resources,
       actions: actions.map((a) => ({ ...a, at: a.at.getTime() })),
       ranking,
+      awards: game.definition.awards?.(game.state),
     });
 
     const settled = await lifecycle.settle(
@@ -339,10 +364,11 @@ export class SessionOwner {
     await bus.publicView(this.sessionId, game.definition.publicView(game.state, now));
     this.publicDirty = false;
     this.lastPublicAt = now;
-    for (let i = 0; i < game.players.length; i += VIEW_PUBLISH_CHUNK) {
+    const everyone = [...game.participants];
+    for (let i = 0; i < everyone.length; i += VIEW_PUBLISH_CHUNK) {
       await bus.players(
         this.sessionId,
-        game.players.slice(i, i + VIEW_PUBLISH_CHUNK).map((player) => ({
+        everyone.slice(i, i + VIEW_PUBLISH_CHUNK).map((player) => ({
           player,
           view: game.definition.playerView(game.state, player, now),
         })),

@@ -16,6 +16,7 @@ import {
   BANK_HASH,
   bank,
   createHarness,
+  join,
   owner,
   registerGames,
   runningSession,
@@ -26,6 +27,7 @@ import {
 let h: Harness;
 const ALICE = "0x00000000000000000000000000000000000000a1" as Address;
 const BOB = "0x00000000000000000000000000000000000000b2" as Address;
+const CAROL = "0x00000000000000000000000000000000000000c3" as Address;
 const MALLORY = "0x00000000000000000000000000000000000000ff" as Address;
 const roll = { type: "roll" };
 
@@ -115,6 +117,43 @@ describe("session runtime", () => {
     expect(stored.phase).toBe("finished");
     await expect(h.redis.exists(sessionKeys.actions(session.id))).resolves.toBe(0);
     feed.close();
+  });
+
+  it("plays rounds, ending early once every place is won", async () => {
+    // Round 0 of up to 3 dice rounds ends in about a second, and awards both places.
+    const session = await runningSession(
+      h,
+      { id: "dice", config: { windowSeconds: 30, rolls: 1 } },
+      [ALICE, BOB],
+      29_000,
+      // Up to three 30 s rounds with 3 s breaks.
+      { rounds: { winnersPerRound: 2, playSeconds: 99 } },
+    );
+    expect(session.gameId).toBe("rounds");
+
+    await send(h.redis, session.id, ALICE, "a1", roll);
+    await send(h.redis, session.id, BOB, "b1", roll);
+    // Carol joins mid-round: she is in from the next round, so her roll now is refused.
+    await join(h.db, session.id, [CAROL]);
+    await send(h.redis, session.id, CAROL, "c0", { roster: "join" });
+    await send(h.redis, session.id, CAROL, "c1", roll);
+
+    const started = Date.now();
+    await expect((await owner(h, session.id)).run()).resolves.toBe("settled");
+    // Decided at the end of round 0, not after all three rounds.
+    expect(Date.now() - started).toBeLessThan(10_000);
+
+    const { transcript } = await settledTranscript(session.id);
+    expect(transcript.awards?.map((award) => award.round)).toEqual([0, 0]);
+    expect(new Set(transcript.awards?.map((award) => award.player))).toEqual(new Set([ALICE, BOB]));
+    const logged = await h.db.sessionAction.findMany({ orderBy: { seq: "asc" } });
+    expect(logged.map((a) => [a.clientId, a.accepted])).toEqual([
+      ["a1", true],
+      ["b1", true],
+      ["c0", true],
+      ["c1", false],
+    ]);
+    expect(verifyTranscript(transcript)).toEqual({ ok: true });
   });
 
   it("scores a quiz, rejecting late answers but logging them", async () => {

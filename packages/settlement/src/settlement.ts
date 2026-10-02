@@ -1,11 +1,20 @@
 import type { Hex, RewardPolicy } from "@fairdrops/shared";
-import { computePayouts, totalOf, type Payout, type RankedPlayer } from "./payouts.js";
+import {
+  computeAwardPayouts,
+  computePayouts,
+  totalOf,
+  type AwardedPlace,
+  type Payout,
+  type RankedPlayer,
+} from "./payouts.js";
 import { PayoutTree } from "./tree.js";
 import type { SettlementMessage } from "./typed-data.js";
 
 export interface SettlementInput {
   giveawayId: Hex;
   ranking: readonly RankedPlayer[];
+  /** Places the game awarded itself (rounds). When present, these are paid, not the ranking. */
+  awards?: readonly AwardedPlace[];
   policy: RewardPolicy;
   /** The escrowed prize, fixed once the giveaway starts. */
   prize: bigint;
@@ -25,7 +34,9 @@ export interface ComputedSettlement {
  * cancelled so the host is refunded.
  */
 export function computeSettlement(input: SettlementInput): ComputedSettlement | null {
-  const payouts = computePayouts(input.ranking, input.policy, input.prize);
+  const payouts = input.awards
+    ? computeAwardPayouts(input.awards, input.policy, input.prize)
+    : computePayouts(input.ranking, input.policy, input.prize);
   if (payouts.length === 0) return null;
   const tree = PayoutTree.build(input.giveawayId, payouts);
   return {

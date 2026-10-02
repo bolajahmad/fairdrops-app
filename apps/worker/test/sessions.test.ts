@@ -171,6 +171,16 @@ describe("starting", () => {
     });
   });
 
+  it("starts a rounds session nobody has joined yet, since people can join between rounds", async () => {
+    const session = await planned(
+      { id: "dice" },
+      { rounds: { winnersPerRound: 1, playSeconds: 600 } },
+    );
+    await h.queues.commitSeed({ data: { sessionId: session.id } });
+    await startedAgo(h.db, session.id, 0);
+    await expect(h.lifecycle.start(session.id)).resolves.toBe("RUNNING");
+  });
+
   it("fails a session whose seed was never committed", async () => {
     const session = await planned({ id: "dice" });
     await join(h.db, session.id, [ALICE]);

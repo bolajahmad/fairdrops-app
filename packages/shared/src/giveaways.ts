@@ -3,6 +3,14 @@ import { gameIdSchema, semverSchema, type SessionStatus } from "./games.js";
 import { contractLimits } from "./limits.js";
 import { httpsUrlSchema, type Hex } from "./primitives.js";
 
+/** A game and the host's settings for it. */
+export const gameChoiceSchema = z.strictObject({
+  id: gameIdSchema,
+  version: semverSchema,
+  config: z.record(z.string(), z.unknown()),
+});
+export type GameChoice = z.infer<typeof gameChoiceSchema>;
+
 /**
  * The host's description of a giveaway. It is emitted in full in the `GiveawayCreated` event,
  * and the contract stores only its keccak256 hash, so the chain vouches for the exact bytes the
@@ -21,11 +29,7 @@ export const giveawayMetadataV1Schema = z.strictObject({
       "Expected an https or ipfs URL",
     )
     .optional(),
-  game: z.strictObject({
-    id: gameIdSchema,
-    version: semverSchema,
-    config: z.record(z.string(), z.unknown()),
-  }),
+  game: gameChoiceSchema,
   rules: z.string().trim().max(500).optional(),
   links: z
     .array(z.strictObject({ label: z.string().trim().min(1).max(30), url: httpsUrlSchema }))
@@ -73,10 +77,39 @@ export const rewardPolicySchema = z.discriminatedUnion("kind", [
 export type RewardPolicy = z.infer<typeof rewardPolicySchema>;
 export type RewardPolicyInput = z.input<typeof rewardPolicySchema>;
 
-/** Metadata v2 adds the reward policy. Everything else is as in v1. */
+/** Most rounds a giveaway can play, whatever its play time. Keeps schedules a sensible size. */
+export const MAX_ROUNDS = 1_000;
+/** Longest a giveaway can play in rounds. */
+export const MAX_PLAY_SECONDS = 7 * 24 * 60 * 60;
+
+/**
+ * Play in rounds for the host's play time, or until every paid place is won if that is sooner.
+ * Each round plays the next game in the rotation (`game`, then each of `next`, then `game`
+ * again) and awards the next `winnersPerRound` places to that round's best players who scored
+ * at least `minScore`. Places a round leaves unfilled carry over. The game starts at the
+ * giveaway's start even if nobody has joined yet: people can join, and leave, between rounds.
+ * Whatever is still unwon when the play time is up goes back to the host.
+ *
+ * A player may win several places, at most `maxWinsPerPlayer` when it is set. Prizes are paid
+ * once, after the last round, so a player's places are added up into one payout.
+ */
+export const roundsSettingsSchema = z.strictObject({
+  winnersPerRound: z.number().int().min(1).max(contractLimits.maxWinners),
+  /** How long rounds keep starting, from the giveaway's start. A round must end within it. */
+  playSeconds: z.number().int().min(60).max(MAX_PLAY_SECONDS),
+  /** Break between rounds, when people can join or leave. */
+  cooldownSeconds: z.number().int().min(3).max(120).default(10),
+  maxWinsPerPlayer: z.number().int().min(1).max(contractLimits.maxWinners).optional(),
+  /** Hosted games played after `game`, in order, before the rotation repeats. */
+  next: z.array(gameChoiceSchema).max(4).default([]),
+});
+export type RoundsSettings = z.infer<typeof roundsSettingsSchema>;
+
+/** Metadata v2 adds the reward policy, and optionally rounds. Everything else is as in v1. */
 export const giveawayMetadataV2Schema = giveawayMetadataV1Schema.extend({
   v: z.literal(2),
   rewards: rewardPolicySchema,
+  rounds: roundsSettingsSchema.optional(),
 });
 export type GiveawayMetadataV2 = z.infer<typeof giveawayMetadataV2Schema>;
 

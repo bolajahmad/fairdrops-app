@@ -29,6 +29,8 @@ export interface SettledOptions {
   /** CONFIRMED also marks the giveaway finalized on-chain, as the indexer would. */
   status?: "PROPOSED" | "SIGNED" | "CONFIRMED";
   createdAt?: Date;
+  /** The prize token; the chain's native currency by default. */
+  token?: Address;
 }
 
 /**
@@ -105,7 +107,7 @@ export async function createSettledGiveaway(db: Database, options: SettledOption
       giveawayId,
       contractAddress: CONTRACT,
       host: HOST,
-      token: "0x0000000000000000000000000000000000000000",
+      token: options.token ?? "0x0000000000000000000000000000000000000000",
       prize: prize.toString(),
       fee: "10000",
       startTime: new Date(startAt),

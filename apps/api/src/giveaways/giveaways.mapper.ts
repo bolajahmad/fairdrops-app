@@ -8,12 +8,11 @@ import type {
   SettlementSignature,
 } from "@fairdrops/db";
 import {
+  endedWithoutWinners,
   deriveGiveawayPhase,
-  findApprovedToken,
   giveawayMetadataSchema,
   rewardPolicyOf,
   rewardPolicySchema,
-  toTokenView,
   type Address,
   type ClaimView,
   type GiveawayEventView,
@@ -26,14 +25,11 @@ import {
 
 const decimal = (value: { toFixed(): string }) => value.toFixed();
 
-export function tokenInfo(chainId: number, token: string): TokenView | null {
-  const approved = findApprovedToken(chainId, token);
-  return approved ? toTokenView(approved) : null;
-}
-
+/** `token`: from TokensService, so the view always carries the token's symbol and decimals. */
 export function toGiveawayView(
   giveaway: Giveaway,
-  session: Pick<GameSession, "id" | "status"> | null,
+  session: Pick<GameSession, "id" | "status" | "failureReason"> | null,
+  token: TokenView | null,
   now = new Date(),
 ): GiveawayView {
   // Stored by the indexer after validation, but parsed again so a row from an older schema
@@ -46,7 +42,7 @@ export function toGiveawayView(
     contract: giveaway.contractAddress as Address,
     host: giveaway.host as Address,
     token: giveaway.token as Address,
-    tokenInfo: tokenInfo(giveaway.chainId, giveaway.token),
+    tokenInfo: token,
     prize: decimal(giveaway.prize),
     fee: decimal(giveaway.fee),
     startTime: giveaway.startTime.toISOString(),
@@ -79,7 +75,9 @@ export function toGiveawayView(
     withdrawn: decimal(giveaway.withdrawn),
     createdAt: giveaway.createdAt.toISOString(),
     createdTxHash: giveaway.createdTxHash as Hex,
-    session: session ? { id: session.id, status: session.status } : null,
+    session: session
+      ? { id: session.id, status: session.status, noWinners: endedWithoutWinners(session) }
+      : null,
   };
 }
 
@@ -145,6 +143,7 @@ export function toClaimView(
   settlement: Pick<Settlement, "status" | "chainId" | "giveawayId" | "sessionId">,
   giveaway: Pick<Giveaway, "contractAddress" | "status" | "claimDeadline" | "token">,
   recipient: string | null,
+  token: TokenView | null,
   now = new Date(),
 ): ClaimView {
   const open =
@@ -165,7 +164,7 @@ export function toClaimView(
     claimedAt: payout.claimedAt?.toISOString() ?? null,
     claimTx: payout.claimTx as Hex | null,
     claimDeadline: giveaway.claimDeadline?.toISOString() ?? null,
-    tokenInfo: tokenInfo(settlement.chainId, giveaway.token),
+    tokenInfo: token,
     token: giveaway.token as Address,
   };
 }

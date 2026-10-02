@@ -3,9 +3,11 @@
 import { TooltipProvider } from "@radix-ui/react-tooltip";
 import { ThemeProvider } from "next-themes";
 import { useEffect, type ReactNode } from "react";
+import { useTrackNavigation } from "@/lib/back";
 import { unlockSound } from "@/lib/sound";
 
 export function Providers({ children }: { children: ReactNode }) {
+  useTrackNavigation();
   useEffect(() => {
     const unlock = () => unlockSound();
     window.addEventListener("pointerdown", unlock, { once: true });

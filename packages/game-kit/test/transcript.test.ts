@@ -69,7 +69,7 @@ describe("transcripts", () => {
       { player: BOB, score: 1, rank: 1 },
       { player: ALICE, score: 1, rank: 2 },
     ]);
-    expect(replay(transcript)).toEqual(transcript.ranking);
+    expect(replay(transcript).ranking).toEqual(transcript.ranking);
     expect(verifyTranscript(transcript)).toEqual({ ok: true });
   });
 

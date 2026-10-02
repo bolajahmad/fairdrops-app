@@ -49,6 +49,9 @@ const envSchema = z
     SESSION_MAX_PLAYERS: z.coerce.number().int().min(1).max(1_000_000).default(10_000),
     /** WebSocket connections one API instance accepts. */
     WS_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(1_000_000).default(20_000),
+
+    /** CoinGecko-compatible `simple/price` endpoint for approximate USDT values. */
+    PRICE_API_URL: z.url().default("https://api.coingecko.com/api/v3/simple/price"),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === "production" && !env.AUTH_JWT_PRIVATE_JWK) {

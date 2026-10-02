@@ -119,6 +119,14 @@ export async function registerGames(db: Database): Promise<void> {
       { ...base, id: "dice", version: "1.0.0", name: "Dice", mode: "HOSTED", status: "APPROVED" },
       {
         ...base,
+        id: "rounds",
+        version: "1.0.0",
+        name: "Rounds",
+        mode: "HOSTED",
+        status: "APPROVED",
+      },
+      {
+        ...base,
         id: "racer",
         version: "1.0.0",
         name: "Racer",
@@ -144,6 +152,9 @@ let giveawayCounter = 0;
 
 export interface GiveawayOptions {
   game: { id: string; version?: string; config?: Record<string, unknown> };
+  /** Play in rounds; the reward policy is then `rewards`, or equal shares for 2 places. */
+  rounds?: Record<string, unknown>;
+  rewards?: Record<string, unknown>;
   startsIn?: number;
   deadlineIn?: number;
 }
@@ -152,16 +163,21 @@ export interface GiveawayOptions {
 export async function createGiveaway(db: Database, options: GiveawayOptions): Promise<Hex> {
   giveawayCounter += 1;
   const giveawayId = toHex(giveawayCounter, { size: 32 });
-  const metadata = {
-    v: 1,
-    title: "Test giveaway",
-    description: "",
-    game: {
-      id: options.game.id,
-      version: options.game.version ?? "1.0.0",
-      config: options.game.config ?? {},
-    },
+  const game = {
+    id: options.game.id,
+    version: options.game.version ?? "1.0.0",
+    config: options.game.config ?? {},
   };
+  const metadata = options.rounds
+    ? {
+        v: 2,
+        title: "Test giveaway",
+        description: "",
+        game,
+        rewards: options.rewards ?? { kind: "equal", winners: 2, minScore: 1 },
+        rounds: { cooldownSeconds: 3, next: [], ...options.rounds },
+      }
+    : { v: 1, title: "Test giveaway", description: "", game };
   const raw = new TextEncoder().encode(canonicalJson(metadata));
   const now = Date.now();
   await db.giveaway.create({
@@ -254,8 +270,9 @@ export async function runningSession(
   game: GiveawayOptions["game"],
   players: Address[],
   ago: number,
+  extra: Omit<GiveawayOptions, "game"> = {},
 ) {
-  const giveawayId = await createGiveaway(h.db, { game });
+  const giveawayId = await createGiveaway(h.db, { game, ...extra });
   await h.planner.createSessions();
   const planned = await sessionFor(h.db, giveawayId);
   if (planned.status !== "SCHEDULED")

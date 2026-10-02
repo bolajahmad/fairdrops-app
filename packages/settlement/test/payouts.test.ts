@@ -2,6 +2,7 @@ import { rewardPolicySchema, type Address, type RewardPolicy } from "@fairdrops/
 import { describe, expect, it } from "vitest";
 import {
   SettlementError,
+  computeAwardPayouts,
   computePayouts,
   placeShares,
   totalOf,
@@ -109,5 +110,26 @@ describe("computePayouts", () => {
       expect(new Set(payouts.map((p) => p.account)).size).toBe(payouts.length);
       expect(computePayouts([...ranking].reverse(), policy, prize)).toEqual(payouts);
     }
+  });
+});
+
+describe("computeAwardPayouts", () => {
+  it("pays each awarded place in order and adds up a repeat winner's places", () => {
+    const awards = [player(1), player(2), player(1), player(3)].map((p) => ({
+      player: p,
+      score: 5,
+    }));
+    const payouts = computeAwardPayouts(awards, weighted([4000, 3000, 2000, 1000]), 1000n);
+    expect(payouts).toEqual([
+      { account: player(1), amount: 600n, rank: 1 },
+      { account: player(2), amount: 300n, rank: 2 },
+      { account: player(3), amount: 100n, rank: 4 },
+    ]);
+    expect(totalOf(payouts)).toBe(1000n);
+  });
+
+  it("ignores awards beyond the paid places", () => {
+    const awards = [1, 2, 3].map((n) => ({ player: player(n), score: 1 }));
+    expect(computeAwardPayouts(awards, equal(2), 100n)).toHaveLength(2);
   });
 });

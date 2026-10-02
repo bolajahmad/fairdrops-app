@@ -14,6 +14,7 @@ import { Sheet } from "@/components/sheet";
 import { StatusChip } from "@/components/status-chip";
 import { gameIconName } from "@/components/avatar";
 import { ErrorNote } from "@/components/error-note";
+import { TokenFacts } from "@/components/token-facts";
 import { copy } from "@/lib/copy";
 import { friendlyError } from "@/lib/errors";
 import { browserFairDrops } from "@/lib/fairdrops";
@@ -28,6 +29,7 @@ import {
 } from "@/lib/format";
 import { gameHowTo, gameTitle, parseLineup } from "@/lib/play-director";
 import { useServerClock } from "@/lib/clock";
+import { playTimeLabel } from "@/lib/presets";
 import { connectInjectedWallet } from "@/lib/wallet";
 
 export function GiveawayScreen({
@@ -51,8 +53,12 @@ export function GiveawayScreen({
   const symbol = tokenSymbol(giveaway);
   const amount = formatTokenAmount(giveaway.prize, tokenDecimals(giveaway));
   const title = giveaway.metadata?.title ?? "Giveaway";
-  const gameId = giveaway.metadata?.game.id ?? "custom";
-  const games = gameId === "dice" || gameId === "quiz" ? parseLineup([gameId]) : [];
+  const metadata = giveaway.metadata;
+  const rounds = metadata?.v === 2 ? metadata.rounds : undefined;
+  const gameIds = metadata
+    ? [metadata.game.id, ...(rounds?.next ?? []).map((game) => game.id)]
+    : [];
+  const games = gameIds.every((id) => id === "dice" || id === "quiz") ? parseLineup(gameIds) : [];
   const places = giveaway.rewards ? placeAmounts(BigInt(giveaway.prize), giveaway.rewards) : [];
   const winnerCount = giveaway.rewards ? rewardPlaces(giveaway.rewards) : giveaway.maxWinners;
   const seconds =
@@ -85,16 +91,18 @@ export function GiveawayScreen({
     }
   }
 
-  const failed = giveaway.session?.status === "FAILED";
+  const unwon = giveaway.session?.noWinners ?? false;
+  const failed = giveaway.session?.status === "FAILED" && !unwon;
   const closed =
     failed ||
+    unwon ||
     giveaway.phase === "cancelled" ||
     giveaway.phase === "expired" ||
     giveaway.phase === "closed";
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col">
-      <AppBar logo />
+      <AppBar logo backHref="/" />
       <div className="flex flex-1 flex-col gap-5 px-4 pb-28">
         <p className="caption m-0 text-ink-muted">Hosted by {shortenWallet(giveaway.host)}</p>
         <h1 className="display-l m-0 text-balance">{title}</h1>
@@ -118,6 +126,19 @@ export function GiveawayScreen({
         <section className="rounded-lg border border-lagoon bg-lagoon-soft/40 p-4">
           <p className="overline m-0 text-lagoon">Prize pool</p>
           <PrizeAmount amount={amount} symbol={symbol} size="xl" />
+          {giveaway.tokenInfo ? (
+            <div className="mt-1">
+              <TokenFacts token={giveaway.tokenInfo} />
+            </div>
+          ) : null}
+          {giveaway.tokenInfo &&
+          giveaway.tokenInfo.trust !== "verified" &&
+          giveaway.tokenInfo.warning ? (
+            <p className="caption m-0 mt-3 flex gap-2 rounded-md bg-flare-soft p-3 text-flare-strong">
+              <Icon name="alert" size={16} className="mt-0.5" />
+              <span className="[overflow-wrap:anywhere]">{giveaway.tokenInfo.warning}</span>
+            </p>
+          ) : null}
           <p className="m-0 text-ink-muted">
             Top {winnerCount} players win.
             {giveaway.rewards?.kind === "weighted" ? " Bigger prizes for higher places." : ""}
@@ -140,11 +161,25 @@ export function GiveawayScreen({
         {games.length > 0 ? (
           <section>
             <h2 className="title-m">
-              {games.length} {games.length === 1 ? "game" : "games"}
+              {rounds
+                ? `Rounds of ${games.map((game) => gameTitle(game.id)).join(" → ")}`
+                : `${games.length} ${games.length === 1 ? "game" : "games"}`}
             </h2>
+            {rounds ? (
+              <p className="caption mt-0 text-ink-muted">
+                Plays for {playTimeLabel(Math.round(rounds.playSeconds / 60))}, round after round.
+                Each round&apos;s best{" "}
+                {rounds.winnersPerRound === 1 ? "player wins" : `${rounds.winnersPerRound} win`} the
+                next prizes until all are won.{" "}
+                {rounds.maxWinsPerPlayer
+                  ? `Nobody can win more than ${rounds.maxWinsPerPlayer}.`
+                  : "You can win more than once."}{" "}
+                Missed the start? Join between rounds.
+              </p>
+            ) : null}
             <ol className="m-0 flex list-none flex-col gap-3 p-0">
               {games.map((game, index) => (
-                <li key={game.id} className="flex flex-wrap items-center gap-3">
+                <li key={`${game.id}-${index}`} className="flex flex-wrap items-center gap-3">
                   <span
                     className={`inline-grid size-10 place-items-center rounded-md text-on-stage stage-${game.id}`}
                   >
@@ -167,7 +202,11 @@ export function GiveawayScreen({
           Scores are recorded as the game is played and checked before anyone is paid. You can check
           it yourself afterwards.
         </p>
-        {giveaway.phase === "cancelled" ? (
+        {unwon ? (
+          <p className="m-0 rounded-md bg-surface-sunken p-3 text-ink-muted">
+            Nobody played or scored enough to win, so the whole prize went back to the host.
+          </p>
+        ) : giveaway.phase === "cancelled" ? (
           <ErrorNote>The host cancelled this giveaway. The prize went back to them.</ErrorNote>
         ) : null}
         {failed ? (

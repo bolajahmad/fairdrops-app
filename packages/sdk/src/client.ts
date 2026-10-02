@@ -8,6 +8,7 @@ import {
   meResponseSchema,
   nonceResponseSchema,
   pageSchema,
+  pricesResponseSchema,
   participantViewSchema,
   payoutTreeDumpSchema,
   sessionResponseSchema,
@@ -25,12 +26,17 @@ import {
   type Hex,
   type MeResponse,
   type Page,
+  type PricesResponse,
   type ParticipantView,
   type PayoutTreeDump,
   type SessionView,
   type SettlementView,
   type WalletConnector,
   type WsTicketResponse,
+  tokenViewSchema,
+  type TokenView,
+  quizBankViewSchema,
+  type QuizBankView,
 } from "@fairdrops/shared";
 import { createSiweMessage } from "viem/siwe";
 import { z } from "zod";
@@ -49,6 +55,13 @@ export interface SignInOptions {
   /** Which chain the wallet signs for. Any chain FairDrops supports; defaults to Base Sepolia. */
   chainId?: number;
   connector?: WalletConnector;
+}
+
+export interface TokenSearchParams {
+  chainId?: number;
+  /** Symbol, name or a full address. */
+  q?: string;
+  limit?: number;
 }
 
 export interface GiveawayListParams {
@@ -174,6 +187,31 @@ export class FairDrops {
       ),
   };
 
+  // Tokens
+
+  /**
+   * Any ERC-20 on a chain FairDrops serves, always with its chain, symbol, name and decimals,
+   * and how far FairDrops vouches for it (`trust`). Unknown addresses are read from the chain.
+   */
+  readonly tokens = {
+    /** By symbol, name or a pasted address; verified tokens first. */
+    search: (params: TokenSearchParams = {}): Promise<TokenView[]> =>
+      this.http.get("/tokens", {
+        query: { chainId: params.chainId, q: params.q, limit: params.limit },
+        schema: tokenViewSchema.array(),
+      }),
+
+    get: (chainId: number, address: Address): Promise<TokenView> =>
+      this.http.get(`/tokens/${chainId}/${address}`, { schema: tokenViewSchema }),
+
+    /**
+     * Approximate USDT prices of verified tokens, refreshed every few minutes. For display only;
+     * convert with `referenceValue` from @fairdrops/shared. Unverified tokens are never priced.
+     */
+    prices: (): Promise<PricesResponse> =>
+      this.http.get("/prices", { schema: pricesResponseSchema }),
+  };
+
   // Sessions
 
   readonly sessions = {
@@ -232,6 +270,10 @@ export class FairDrops {
   readonly games = {
     get: (id: string, version: string): Promise<GameDefinitionView> =>
       this.http.get(`/games/${id}/${version}`, { schema: gameDefinitionViewSchema }),
+
+    /** Question banks a quiz can draw from: names and sizes, never the questions. */
+    quizBanks: (): Promise<QuizBankView[]> =>
+      this.http.get("/quiz-banks", { schema: quizBankViewSchema.array() }),
   };
 
   readonly contracts = {

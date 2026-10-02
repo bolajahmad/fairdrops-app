@@ -39,6 +39,18 @@ export interface Standing {
 }
 
 /**
+ * One paid place, won in a round. Awards are in place order: the first award takes the first
+ * place's share of the prize. The same player can hold several.
+ */
+export interface Award {
+  /** The round it was won in, from 0. */
+  round: number;
+  player: Address;
+  /** The player's score in that round. */
+  score: number;
+}
+
+/**
  * A game FairDrops runs itself. It must be deterministic: given the same config, players,
  * start time, seed, resources and action log, every function returns the same result on every
  * machine. That is what lets anyone replay a published transcript and check the winners.
@@ -76,6 +88,17 @@ export interface HostedGame<Config, State, Action, PublicView, PlayerView> {
   playerView(state: State, player: Address, now: number): PlayerView;
   /** Final standings, best first. */
   rank(state: State): Standing[];
+
+  /**
+   * For games that award paid places themselves, such as rounds where a player can win more
+   * than once: the places in order. Settlement then pays these instead of the ranking.
+   */
+  awards?(state: State): Award[];
+  /**
+   * When the game is decided before `duration` runs out, the time it was decided, once `now`
+   * has passed it; otherwise null. Must be a pure function of the state and `now`.
+   */
+  decidedAt?(state: State, now: number): number | null;
 }
 
 /** A resource kind a game can ask for, with how to validate uploaded content. */
