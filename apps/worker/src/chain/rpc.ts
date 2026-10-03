@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { fairDropsAbi } from "@fairdrops/contracts";
-import { findChain, type Address, type Hex } from "@fairdrops/shared";
+import { findChain, type Address, type Hex, type SignedAuthorization } from "@fairdrops/shared";
 import {
   BaseError,
   ContractFunctionRevertedError,
@@ -22,6 +22,8 @@ export interface CallRequest {
   to: Address;
   data: Hex;
   value?: bigint;
+  /** EIP-7702 authorizations, for a relayed batch from an embedded wallet's first use. */
+  authorizationList?: SignedAuthorization[];
 }
 
 export type FeeQuote =
@@ -134,13 +136,25 @@ class ViemChainRpc implements ChainRpc {
 
   estimateGas(call: CallRequest): Promise<bigint> {
     return this.client
-      .estimateGas({ account: call.from, to: call.to, data: call.data, value: call.value })
+      .estimateGas({
+        account: call.from,
+        to: call.to,
+        data: call.data,
+        value: call.value,
+        ...(call.authorizationList ? { authorizationList: call.authorizationList } : {}),
+      })
       .catch(rethrow);
   }
 
   async simulate(call: CallRequest): Promise<void> {
     await this.client
-      .call({ account: call.from, to: call.to, data: call.data, value: call.value })
+      .call({
+        account: call.from,
+        to: call.to,
+        data: call.data,
+        value: call.value,
+        ...(call.authorizationList ? { authorizationList: call.authorizationList } : {}),
+      })
       .catch(rethrow);
   }
 

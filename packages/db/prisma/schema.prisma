@@ -601,6 +601,8 @@ enum ChainTxKind {
   FINALIZE
   CLAIM
   CANCEL
+  /// A gas-free action someone signed (relay_requests), submitted by the relayer.
+  RELAY
 }
 
 /// SIGNED: recorded, not yet accepted by a node. SENT: in a mempool. MINED: included and
@@ -626,6 +628,8 @@ model ChainTransaction {
   to                   String        @db.Char(42)
   data                 String
   value                Decimal       @default(0) @db.Decimal(78, 0)
+  /// EIP-7702 authorizations sent with it, kept so a fee-bumped resend carries them too.
+  authorizations       Json?
   gasLimit             Decimal       @map("gas_limit") @db.Decimal(78, 0)
   maxFeePerGas         Decimal?      @map("max_fee_per_gas") @db.Decimal(78, 0)
   maxPriorityFeePerGas Decimal?      @map("max_priority_fee_per_gas") @db.Decimal(78, 0)
@@ -645,9 +649,47 @@ model ChainTransaction {
   updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   settlement Settlement?
+  relays     RelayRequest[]
 
   @@index([chainId, sender, nonce])
   @@index([status])
   @@index([kind, ref])
   @@map("chain_transactions")
+}
+
+/// QUEUED: accepted by the API, waiting for the relayer. SENT: broadcast. MINED: it went
+/// through. FAILED: refused, reverted or dropped; nothing moved.
+enum RelayStatus {
+  QUEUED
+  SENT
+  MINED
+  FAILED
+}
+
+/// A gas-free action someone signed (see `relayRequestSchema` in @fairdrops/shared). The API
+/// checks the signature and the fee and queues it; the worker's relayer submits it.
+model RelayRequest {
+  id        String      @id @default(uuid(7)) @db.Uuid
+  chainId   Int         @map("chain_id")
+  action    String      @db.VarChar(16)
+  /// Who signed it.
+  account   String      @db.Char(42)
+  /// Who asked for it, when signed in.
+  userId    String?     @map("user_id") @db.Uuid
+  /// The checked request, exactly as it will be submitted.
+  payload   Json
+  fee       Decimal     @db.Decimal(78, 0)
+  feeToken  String      @map("fee_token") @db.Char(42)
+  status    RelayStatus @default(QUEUED)
+  txId      String?     @map("tx_id") @db.Uuid
+  txHash    String?     @map("tx_hash") @db.Char(66)
+  error     String?
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tx ChainTransaction? @relation(fields: [txId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([account])
+  @@map("relay_requests")
 }

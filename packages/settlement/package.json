@@ -22,6 +22,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
+    "@fairdrops/contracts": "workspace:*",
     "@fairdrops/game-kit": "workspace:*",
     "@fairdrops/shared": "workspace:*",
     "@openzeppelin/merkle-tree": "catalog:",

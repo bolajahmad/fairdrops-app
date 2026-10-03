@@ -6,6 +6,7 @@ import {stdJson} from "forge-std/StdJson.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {FairDrops} from "../src/FairDrops.sol";
+import {FairDropsAccount} from "../src/FairDropsAccount.sol";
 import {IFairDrops} from "../src/interfaces/IFairDrops.sol";
 
 /// @notice Checks the contract against `test/fixtures/settlement-parity.json`, which
@@ -164,6 +165,30 @@ contract FairDropsParityTest is Test {
                 _uint(".relay.createGiveaway.nonce"),
                 _uint(".relay.createGiveaway.deadline")
             )
+        );
+    }
+
+    /// @dev An embedded wallet's batch: FairDropsAccount, running at the wallet's address, must
+    /// compute the digest TypeScript signs.
+    function test_AccountExecuteDigestMatches() public {
+        address account = json.readAddress(".relay.execute.account");
+        deployCodeTo("FairDropsAccount.sol:FairDropsAccount", account);
+
+        FairDropsAccount.Call[] memory calls = new FairDropsAccount.Call[](2);
+        for (uint256 i = 0; i < calls.length; ++i) {
+            string memory at = string.concat(".relay.execute.calls[", vm.toString(i), "]");
+            calls[i] = FairDropsAccount.Call({
+                to: json.readAddress(string.concat(at, ".to")),
+                value: vm.parseUint(json.readString(string.concat(at, ".value"))),
+                data: json.readBytes(string.concat(at, ".data"))
+            });
+        }
+        assertEq(
+            FairDropsAccount(payable(account)).executeDigest(
+                calls, _uint(".relay.execute.nonce"), _uint(".relay.execute.deadline")
+            ),
+            json.readBytes32(".relay.execute.digest"),
+            "Execute"
         );
     }
 

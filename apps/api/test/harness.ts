@@ -23,6 +23,7 @@ import { REDIS } from "../src/infra/redis.module.js";
 import { LeaderboardsService } from "../src/leaderboards/leaderboards.service.js";
 import { PRICE_SOURCE, type PriceSource } from "../src/prices/price-source.js";
 import { PRIVY_GATEWAY, type PrivyGateway, type PrivyIdentity } from "../src/auth/privy.gateway.js";
+import { RELAY_CHAIN, type AccountState, type RelayChain } from "../src/relay/relay-chain.js";
 import { AppException } from "../src/common/app.exception.js";
 import { TOKEN_READER, type Erc20Metadata, type TokenReader } from "../src/tokens/token-reader.js";
 
@@ -43,6 +44,14 @@ export interface TestApp {
   tokenReads: { count: number };
   /** Privy access tokens the stubbed Privy accepts, and who each belongs to. */
   privyUsers: Map<string, PrivyIdentity>;
+  /** What the stubbed chain reports to gas-free actions. */
+  relayChain: {
+    nonces: Map<string, bigint>;
+    accounts: Map<string, AccountState>;
+    withdrawable: bigint;
+    /** Set to make the simulated transaction revert with this reason. */
+    revert: string | null;
+  };
   reset(): Promise<void>;
   close(): Promise<void>;
 }
@@ -74,6 +83,28 @@ export async function createTestApp(): Promise<TestApp> {
           );
     },
   };
+  const relayChain = {
+    nonces: new Map<string, bigint>(),
+    accounts: new Map<string, AccountState>(),
+    withdrawable: 0n,
+    revert: null as string | null,
+  };
+  const relayReader: RelayChain = {
+    gasPrice: () => Promise.resolve(1_000_000_000n),
+    contractNonce: (_chainId, _contract, account) =>
+      Promise.resolve(relayChain.nonces.get(account.toLowerCase()) ?? 0n),
+    accountState: (_chainId, account) =>
+      Promise.resolve(
+        relayChain.accounts.get(account.toLowerCase()) ?? {
+          delegated: false,
+          nonce: 0n,
+          transactionCount: 0,
+        },
+      ),
+    hostWithdrawable: () => Promise.resolve(relayChain.withdrawable),
+    simulate: () =>
+      relayChain.revert ? Promise.reject(new Error(relayChain.revert)) : Promise.resolve(),
+  };
   // Never the real market: fixed dollar prices.
   const priceSource: PriceSource = {
     fetch: (ids) =>
@@ -98,6 +129,8 @@ export async function createTestApp(): Promise<TestApp> {
     .useValue(priceSource)
     .overrideProvider(PRIVY_GATEWAY)
     .useValue(privyGateway)
+    .overrideProvider(RELAY_CHAIN)
+    .useValue(relayReader)
     .compile();
 
   const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
@@ -116,12 +149,17 @@ export async function createTestApp(): Promise<TestApp> {
     erc20s,
     tokenReads,
     privyUsers,
+    relayChain,
     async reset() {
       admins.clear();
       contractSignatures.valid = false;
       erc20s.clear();
       tokenReads.count = 0;
       privyUsers.clear();
+      relayChain.nonces.clear();
+      relayChain.accounts.clear();
+      relayChain.withdrawable = 0n;
+      relayChain.revert = null;
       app.get(LeaderboardsService).clear();
       await resetDatabase(db);
       await redis.flushdb();

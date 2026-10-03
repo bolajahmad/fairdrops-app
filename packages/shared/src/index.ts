@@ -12,4 +12,5 @@ export * from "./profiles.js";
 export * from "./sessions.js";
 export * from "./settlement.js";
 export * from "./prices.js";
+export * from "./relay.js";
 export * from "./tokens.js";

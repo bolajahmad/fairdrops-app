@@ -11,6 +11,8 @@ import { SettlementBuilder } from "../src/settlement/settlement-builder.js";
 import { SettlementReconciler } from "../src/settlement/settlement-reconciler.js";
 import { SettlementSubmitter } from "../src/settlement/settlement-submitter.js";
 import { SettlementVerifier } from "../src/settlement/settlement-verifier.js";
+import { RelayProcessor } from "../src/settlement/relay-processor.js";
+import { TxEngine } from "../src/chain/tx-engine.js";
 import {
   BANK_HASH,
   CHAIN_ID,
@@ -212,7 +214,97 @@ describe("settlement", () => {
     settlement = await settlementOf(session.id);
     expect(settlement.payouts.every((p) => p.claimedAt && p.claimTx)).toBe(true);
     expect(h.chain.giveaways.get(session.giveawayId)!.claimed).toBe(666n);
-    expect(h.chain.calls.map((c) => c.functionName)).toEqual(["finalize", "claimMany"]);
+    expect(h.chain.calls.map((c) => c.functionName)).toEqual(["finalize", "claimManyFor"]);
+  });
+
+  it("submits a signed claim the API queued, and follows it until it's mined", async () => {
+    const session = await settledGame();
+    expect(await builder.build(session.id)).toBe("built");
+    await signAll(session.id);
+    expect(await submitter.submit(session.id)).toBe("mined");
+    await index();
+    await reconciler.confirm(new Date());
+
+    const payout = (await settlementOf(session.id)).payouts[0]!;
+    const destination = "0x00000000000000000000000000000000000000d4" as Address;
+    const relay = await h.db.relayRequest.create({
+      data: {
+        chainId: CHAIN_ID,
+        action: "claim",
+        account: payout.account,
+        payload: {
+          action: "claim",
+          chainId: CHAIN_ID,
+          giveawayId: session.giveawayId,
+          account: payout.account,
+          amount: payout.amount.toFixed(),
+          recipient: destination,
+          fee: "1",
+          nonce: "0",
+          deadline: Math.floor(Date.now() / 1000) + 600,
+          signature: `0x${"11".repeat(65)}`,
+          proof: payout.proof,
+        },
+        fee: "1",
+        feeToken: "0x0000000000000000000000000000000000000000",
+      },
+    });
+
+    const processor = h.moduleRef.get(RelayProcessor);
+    await processor.tick();
+    expect(await h.db.relayRequest.findUniqueOrThrow({ where: { id: relay.id } })).toMatchObject({
+      status: "SENT",
+    });
+    await h.moduleRef.get(TxEngine).reconcile(new Date());
+    await processor.tick();
+    const done = await h.db.relayRequest.findUniqueOrThrow({ where: { id: relay.id } });
+    expect(done.status).toBe("MINED");
+    expect(done.txHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(h.chain.calls.at(-1)?.functionName).toBe("claimWithSig");
+
+    // Sending it again changes nothing: the request is settled.
+    await processor.tick();
+    expect(h.chain.calls.filter((c) => c.functionName === "claimWithSig")).toHaveLength(1);
+  });
+
+  it("marks a signed action that would revert as failed, in plain words", async () => {
+    const session = await settledGame();
+    expect(await builder.build(session.id)).toBe("built");
+    await signAll(session.id);
+    expect(await submitter.submit(session.id)).toBe("mined");
+    await index();
+    await reconciler.confirm(new Date());
+    // Already collected, so the relayed claim reverts.
+    expect(await relayer.relay(session.id)).toBe(2);
+
+    const payout = (await settlementOf(session.id)).payouts[0]!;
+    const relay = await h.db.relayRequest.create({
+      data: {
+        chainId: CHAIN_ID,
+        action: "claim",
+        account: payout.account,
+        payload: {
+          action: "claim",
+          chainId: CHAIN_ID,
+          giveawayId: session.giveawayId,
+          account: payout.account,
+          amount: payout.amount.toFixed(),
+          recipient: payout.account,
+          fee: "1",
+          nonce: "0",
+          deadline: Math.floor(Date.now() / 1000) + 600,
+          signature: `0x${"11".repeat(65)}`,
+          proof: payout.proof,
+        },
+        fee: "1",
+        feeToken: "0x0000000000000000000000000000000000000000",
+      },
+    });
+    await h.moduleRef.get(RelayProcessor).tick();
+    expect(await h.db.relayRequest.findUniqueOrThrow({ where: { id: relay.id } })).toMatchObject({
+      status: "FAILED",
+      error: "This prize was already collected",
+    });
   });
 
   it("needs signatures from as many verifiers as the contract's threshold", async () => {

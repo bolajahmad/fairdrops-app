@@ -138,6 +138,10 @@ const envSchema = z
     CLAIM_RELAY_ENABLED: booleanString.default(true),
     /** Claims per claimMany transaction. */
     CLAIM_BATCH_SIZE: z.coerce.number().int().min(1).max(200).default(25),
+    /** How often the relayer looks for signed actions to submit (relay_requests). */
+    RELAY_INTERVAL_MS: z.coerce.number().int().min(100).max(60_000).default(2_000),
+    /** CoinGecko-compatible `simple/price` endpoint, for relay fees in a prize's token. */
+    PRICE_API_URL: z.url().default("https://api.coingecko.com/api/v3/simple/price"),
     /** Cancel on-chain the giveaways of games that failed or were cancelled, so hosts get refunds. */
     UNWIND_ENABLED: booleanString.default(true),
     /** How long to wait for a transaction before looking again on the next pass. */

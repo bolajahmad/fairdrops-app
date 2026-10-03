@@ -28,6 +28,8 @@ const paths = {
   abiJson: join(packageRoot, "abi", `${CONTRACT}.json`),
   generatedAbi: join(packageRoot, "ts", "generated", "abi.ts"),
   generatedDeployments: join(packageRoot, "ts", "generated", "deployments.ts"),
+  accountArtifact: join(packageRoot, "out", "FairDropsAccount.sol", "FairDropsAccount.json"),
+  generatedAccountAbi: join(packageRoot, "ts", "generated", "account-abi.ts"),
   webAbi: join(repoRoot, "apps", "web", "abi", "fairDrops.ts"),
   deployments: join(packageRoot, "deployments"),
   broadcast: join(packageRoot, "broadcast", "Deploy.s.sol"),
@@ -86,10 +88,15 @@ function syncAbi({ check, stage }: { check: boolean; stage: boolean }): void {
   const hash = abiHash(abi);
   const module = abiModule(abi, hash);
 
+  const account = artifactSchema.parse(readJson(paths.accountArtifact)).abi;
   const outputs: Array<[string, string]> = [
     [paths.abiJson, `${JSON.stringify(abi, null, 2)}\n`],
     [paths.generatedAbi, module],
     [paths.webAbi, module],
+    [
+      paths.generatedAccountAbi,
+      `${HEADER}\nexport const fairDropsAccountAbi = ${JSON.stringify(account, null, 2)} as const;\n`,
+    ],
   ];
   const changed = outputs
     .filter(([file, content]) => readText(file) !== content)

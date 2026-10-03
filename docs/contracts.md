@@ -98,6 +98,39 @@ each prize. Every fee is reported in a `RelayFeePaid` event.
 The type strings live in `packages/settlement/src/relay.ts` for TypeScript; the settlement
 parity fixture checks that both sides compute the same digests.
 
+### FairDrops wallets (EIP-7702)
+
+People who sign in with Google, email or a passkey get an embedded (Privy) wallet that never
+holds the network's coin. On its first gas-free action it signs an EIP-7702 authorization that
+points it at `FairDropsAccount` (`0xec34809c2b93ca8bd3ffc66d134b3d167f6c2f98` on every chain).
+After that it can sign an `Execute(Call[] calls, uint256 nonce, uint256 deadline)` batch, which
+the relayer sends to the wallet's own address. The relayer only sends these batches, each ending
+with the fee paid to it in the token being moved (`checkExecuteCalls` in
+`packages/settlement/src/relay-calls.ts`):
+
+| Purpose  | Calls                                                                              |
+| -------- | ---------------------------------------------------------------------------------- |
+| `send`   | one `transfer` (or native coin), then the fee                                      |
+| `host`   | `approve` FairDrops and `createGiveaway` (or `createGiveaway` with value), the fee |
+| `manage` | `cancel`, or `approve` and `addFunds` (or `addFunds` with value), then the fee     |
+
+So hosting works the same way from either kind of wallet, from the same screens and from the
+host's own funds. The only difference is who sends the transaction: a browser wallet sends it
+and pays gas in the network's coin, while a FairDrops wallet signs once and the relayer sends it,
+taking a small fee in the prize token on top of the usual giveaway fee.
+
+### The flow
+
+`GET /relay/quote` returns the fee, nonce, deadline and relayer, plus the delegate and
+authorization nonce when a FairDrops wallet isn't delegated yet. The client signs, then
+`POST /relay` checks who signed, the nonce, that the fee is at least 80% of a fresh quote, the
+batch's shape (and, for `manage`, that the signer hosts the giveaway), and that it simulates.
+It then queues the request. The worker's `RelayProcessor` sends it through the transaction
+engine and records whether it was `MINED` or `FAILED`; `GET /relay/:id` reports which. The SDK
+wraps all of this in `@fairdrops/sdk/relay`: `collectPrize`, `withdrawGasFree`,
+`setPayoutWalletGasFree`, `sendFromWallet`, `hostFromWallet`, `cancelFromWallet` and
+`addFundsFromWallet`.
+
 ## Security review
 
 Each item below is covered by a test in `packages/contracts/test`.

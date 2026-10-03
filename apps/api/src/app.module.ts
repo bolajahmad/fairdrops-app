@@ -13,6 +13,7 @@ import { GiveawaysModule } from "./giveaways/giveaways.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { InfraModule } from "./infra/infra.module.js";
 import { LeaderboardsModule } from "./leaderboards/leaderboards.module.js";
+import { RelayModule } from "./relay/relay.module.js";
 import { PricesModule } from "./prices/prices.module.js";
 import { ProfilesModule } from "./profiles/profiles.module.js";
 import { SessionsModule } from "./sessions/sessions.module.js";
@@ -33,6 +34,7 @@ import { SessionsModule } from "./sessions/sessions.module.js";
     TokensModule,
     PricesModule,
     LeaderboardsModule,
+    RelayModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ErrorFilter }],
 })

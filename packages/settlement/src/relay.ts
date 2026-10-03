@@ -121,3 +121,49 @@ export function relayDigest<A extends RelayAction>(
 ): Hex {
   return hashTypedData(relayTypedData(chainId, contract, primaryType, message) as never);
 }
+
+/** One call in a batch an embedded wallet signs (FairDropsAccount's `Call`). */
+export interface AccountCall {
+  to: Address;
+  value: bigint;
+  data: Hex;
+}
+
+/** Must match FairDropsAccount's `EXECUTE_TYPEHASH`, which nests `Call`. */
+export const ACCOUNT_TYPES = {
+  Execute: [
+    { name: "calls", type: "Call[]" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+  Call: [
+    { name: "to", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "data", type: "bytes" },
+  ],
+} as const;
+
+/**
+ * Typed data for a batch an embedded wallet runs through FairDropsAccount (EIP-7702). The
+ * domain's verifying contract is the wallet itself, since the delegate's code runs there.
+ */
+export function executeTypedData(
+  chainId: number,
+  account: Address,
+  message: { calls: readonly AccountCall[]; nonce: bigint; deadline: bigint },
+) {
+  return {
+    domain: { name: "FairDropsAccount", version: "1", chainId, verifyingContract: account },
+    types: ACCOUNT_TYPES,
+    primaryType: "Execute" as const,
+    message: { ...message, calls: [...message.calls] },
+  };
+}
+
+export function executeDigest(
+  chainId: number,
+  account: Address,
+  message: { calls: readonly AccountCall[]; nonce: bigint; deadline: bigint },
+): Hex {
+  return hashTypedData(executeTypedData(chainId, account, message));
+}

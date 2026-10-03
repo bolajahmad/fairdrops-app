@@ -7,6 +7,8 @@ import {
   type GameDefinitionView,
 } from "@fairdrops/shared";
 import { createGiveaway, prepareGiveaway } from "@fairdrops/sdk/host";
+import Link from "next/link";
+import { hostGasFree, hostsGasFree } from "@/lib/gas-free";
 import { formatUnits, parseUnits } from "viem";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -318,6 +320,10 @@ export function CreateFlow() {
     }
     setBusy(true);
     setError(null);
+    if (hostsGasFree()) {
+      await lockGasFree(prepared);
+      return;
+    }
     // The wallet is asked, in order: connect (if needed), switch network (if needed), allow the
     // token (ERC-20s, if the allowance is short), lock. Each step shows here as it happens.
     setSteps({
@@ -344,6 +350,29 @@ export function CreateFlow() {
         );
         return failed ? { ...current, [failed]: "failed" } : current;
       });
+      setError(friendlyError(caught, "Nothing was locked. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * The FairDrops wallet (social sign-in) holds no gas, so it signs one batch (allow the token,
+   * lock the prize, pay the relayer's fee in the prize token) and FairDrops sends it.
+   */
+  async function lockGasFree(ready: Exclude<typeof prepared, Error>) {
+    setSteps({ network: "skipped", approve: "skipped", lock: "signing" });
+    const mark = (status: StepStatus) =>
+      setSteps((current) => (current ? { ...current, lock: status } : current));
+    try {
+      const { giveawayId } = await hostGasFree(ready, {
+        onSigning: () => mark("signing"),
+        onSubmitted: () => mark("confirming"),
+      });
+      mark("done");
+      router.push(`/host/${token.chainId}/${giveawayId}/share?title=${encodeURIComponent(title)}`);
+    } catch (caught) {
+      mark("failed");
       setError(friendlyError(caught, "Nothing was locked. Try again."));
     } finally {
       setBusy(false);
@@ -726,9 +755,19 @@ export function CreateFlow() {
             </Section>
 
             {steps ? (
-              <LockProgress steps={steps} token={token} amount={fmt(amount)} />
+              <LockProgress
+                steps={steps}
+                token={token}
+                amount={fmt(amount)}
+                gasFree={hostsGasFree()}
+              />
             ) : (
-              <NetworkNotice token={token} walletChain={walletChain} owner={owner} />
+              <NetworkNotice
+                token={token}
+                walletChain={walletChain}
+                owner={owner}
+                gasFree={hostsGasFree()}
+              />
             )}
 
             <Section heading={create.review.payHeading}>
@@ -1224,19 +1263,24 @@ function NetworkNotice({
   token,
   walletChain,
   owner,
+  gasFree = false,
 }: {
   token: TokenView;
   walletChain: number | null;
   owner: Address | null;
+  /** The FairDrops wallet signs once and FairDrops sends it, on any network. */
+  gasFree?: boolean;
 }) {
   const target = chainName(token.chainId);
-  const ready = owner !== null && walletChain === token.chainId;
-  const asks = [
-    owner === null ? create.network.askConnect : null,
-    ready ? null : create.network.askSwitch(target),
-    token.native ? null : create.network.askAllow(token.symbol),
-    create.network.askLock,
-  ].filter((ask): ask is string => ask !== null);
+  const ready = owner !== null && (gasFree || walletChain === token.chainId);
+  const asks = gasFree
+    ? [create.network.askGasFree(token.symbol)]
+    : [
+        owner === null ? create.network.askConnect : null,
+        ready ? null : create.network.askSwitch(target),
+        token.native ? null : create.network.askAllow(token.symbol),
+        create.network.askLock,
+      ].filter((ask): ask is string => ask !== null);
   return (
     <section
       className={cn(
@@ -1268,24 +1312,29 @@ function LockProgress({
   steps,
   token,
   amount,
+  gasFree = false,
 }: {
   steps: LockSteps;
   token: TokenView;
   amount: string;
+  /** One signature, sent by FairDrops: no network switch or separate approval. */
+  gasFree?: boolean;
 }) {
   const network = chainName(token.chainId);
   const rows: { key: keyof LockSteps; label: string; skipped: string }[] = [
     {
       key: "network",
       label: create.network.stepSwitch(network),
-      skipped: create.network.already(network),
+      skipped: gasFree ? create.network.gasFreeNetwork : create.network.already(network),
     },
     {
       key: "approve",
       label: create.network.stepAllow(amount),
       skipped: token.native
         ? create.network.notNeeded(token.symbol)
-        : create.network.alreadyAllowed,
+        : gasFree
+          ? create.network.gasFreeAllow
+          : create.network.alreadyAllowed,
     },
     { key: "lock", label: create.network.stepLock, skipped: "" },
   ];
@@ -1407,8 +1456,8 @@ function BankPicker({
 
 /**
  * Someone who signed in with a social account pays from their FairDrops wallet, which starts
- * empty. It needs the prize token, plus a little of the network's coin for fees until hosting
- * is gas-free.
+ * empty. It only needs the prize token: hosting from it is gas-free, with a small fee taken in
+ * the same token.
  */
 function FundingNote({ owner, token }: { owner: Address; token: TokenView }) {
   const [copied, setCopied] = useState(false);
@@ -1417,7 +1466,11 @@ function FundingNote({ owner, token }: { owner: Address; token: TokenView }) {
     <div className="flex flex-col gap-2 rounded-md bg-surface-sunken p-3">
       <span className="caption text-ink-muted">
         Paying from your FairDrops wallet on {chainName(token.chainId)}. Send it the {token.symbol}{" "}
-        for the prize{token.native ? "" : `, plus a little ${native} for network fees`}.
+        for the prize, plus a little extra for the network fee
+        {token.native ? "" : `: it's paid in ${token.symbol}, so you don't need ${native}`}.{" "}
+        <Link href="/me/wallet" className="font-semibold text-lagoon">
+          Open your wallet
+        </Link>
       </span>
       <button
         type="button"

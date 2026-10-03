@@ -6,3 +6,4 @@ process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ?? DEFAULT_TEST_DATABAS
 process.env.REDIS_URL = process.env.TEST_REDIS_URL ?? "redis://localhost:6379/15";
 process.env.APP_ORIGINS = "http://localhost:3000";
 process.env.DEPLOYMENT_ENVIRONMENT = "testnet";
+process.env.RELAYER_ADDRESS = "0x215ba01637f2bbf91fcf5fb4df6d41bc64820d65";

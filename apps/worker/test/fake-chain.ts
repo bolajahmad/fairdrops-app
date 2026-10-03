@@ -315,8 +315,15 @@ export class FakeChain implements ChainRpc, FairDropsReader {
         });
         return;
       }
-      case "claimMany": {
+      case "claimMany":
+      case "claimManyFor": {
         const [requests] = call.args;
+        if (call.functionName === "claimManyFor") {
+          const [, fees] = call.args;
+          requests.forEach((r, i) => {
+            if (fees[i]! > (r.amount * 200n) / 10_000n) throw new ContractRevert("FeeTooHigh");
+          });
+        }
         const staged = new Map<string, Set<string>>();
         for (const r of requests) {
           const g = this.giveaways.get(r.id.toLowerCase());
@@ -344,6 +351,30 @@ export class FakeChain implements ChainRpc, FairDropsReader {
           if (!commit) continue;
           const g = this.giveaways.get(r.id.toLowerCase())!;
           g.claimedBy.add(r.account.toLowerCase());
+          g.claimed += r.amount;
+        }
+        return;
+      }
+      case "claimWithSig": {
+        // Signatures are checked by the real contract and the settlement package's tests.
+        const [r, recipient, fee] = call.args;
+        const g = this.giveaways.get(r.id.toLowerCase());
+        if (!g || g.status !== "Finalized") throw new ContractRevert("InvalidStatus", [g?.status]);
+        const account = r.account.toLowerCase();
+        if (g.claimedBy.has(account)) throw new ContractRevert("AlreadyClaimed");
+        if (!verifyPayoutProof(g.payoutRoot, r.id, r.account, r.amount, r.proof)) {
+          throw new ContractRevert("InvalidProof");
+        }
+        if (fee >= r.amount) throw new ContractRevert("FeeTooHigh");
+        emit({
+          kind: "Claimed",
+          giveawayId: r.id,
+          account,
+          recipient: recipient.toLowerCase(),
+          amount: r.amount,
+        });
+        if (commit) {
+          g.claimedBy.add(account);
           g.claimed += r.amount;
         }
         return;

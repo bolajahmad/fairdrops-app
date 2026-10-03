@@ -57,6 +57,12 @@ const envSchema = z
     PRIVY_APP_ID: z.string().min(1).optional(),
     PRIVY_APP_SECRET: z.string().min(1).optional(),
 
+    /**
+     * The worker relayer's address (RELAYER_PRIVATE_KEY's), which pays gas for signed actions
+     * and receives their fees. Without it, gas-free actions are off.
+     */
+    RELAYER_ADDRESS: addressSchema.optional(),
+
     /** CoinGecko-compatible `simple/price` endpoint for approximate USDT values. */
     PRICE_API_URL: z.url().default("https://api.coingecko.com/api/v3/simple/price"),
   })

@@ -27,6 +27,15 @@ import {
   tokenSymbol,
 } from "@/lib/format";
 import { connectWallet } from "@/lib/wallet";
+import {
+  addFundsGasFree,
+  cancelGasFree,
+  gasFreeEnabled,
+  hostsGasFree,
+  quoteWithdraw,
+  withdrawToWallet,
+} from "@/lib/gas-free";
+import { PayoutSheet } from "@/components/payout-sheet";
 
 export function ManageGiveaway({
   giveaway,
@@ -39,7 +48,8 @@ export function ManageGiveaway({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
-  const [owed, setOwed] = useState<string | null>(null);
+  const [owed, setOwed] = useState<bigint | null>(null);
+  const [withdrawing, setWithdrawing] = useState(false);
   const [board, setBoard] = useState<{ player: string; score: number; rank: number }[]>([]);
   // The same status players see, including games that ended with no winners.
   const status = giveawayStatus(giveaway) ?? "ended";
@@ -53,7 +63,7 @@ export function ManageGiveaway({
     let cancel = false;
     void withdrawable(giveaway.chainId, giveaway.giveawayId)
       .then((amount) => {
-        if (!cancel) setOwed(formatTokenAmount(amount.toString(), tokenDecimals(giveaway)));
+        if (!cancel) setOwed(amount);
       })
       .catch(() => undefined);
     return () => {
@@ -94,6 +104,11 @@ export function ManageGiveaway({
       live = false;
     };
   }, [finished, session]);
+
+  async function withdrawYourself(wallet: Awaited<ReturnType<typeof connectWallet>>) {
+    await withdraw(wallet, giveaway.chainId, giveaway.giveawayId);
+    setOwed(0n);
+  }
 
   async function withWallet(
     run: (wallet: Awaited<ReturnType<typeof connectWallet>>) => Promise<void>,
@@ -153,15 +168,25 @@ export function ManageGiveaway({
               onClick={() => {
                 const token = giveaway.tokenInfo;
                 if (!token) return;
+                // The giveaway's own token and its real decimals: never a default.
+                const amount = parseUnits(extra || "0", token.decimals);
                 void withWallet(async (wallet) => {
-                  // The giveaway's own token and its real decimals: never a default.
-                  await addFunds(
-                    wallet,
-                    giveaway.chainId,
-                    giveaway.giveawayId,
-                    giveaway.token,
-                    parseUnits(extra || "0", token.decimals),
-                  );
+                  if (hostsGasFree()) {
+                    await addFundsGasFree({
+                      chainId: giveaway.chainId,
+                      giveawayId: giveaway.giveawayId,
+                      token: giveaway.token,
+                      amount,
+                    });
+                  } else {
+                    await addFunds(
+                      wallet,
+                      giveaway.chainId,
+                      giveaway.giveawayId,
+                      giveaway.token,
+                      amount,
+                    );
+                  }
                   setExtra("");
                 });
               }}
@@ -244,28 +269,76 @@ export function ManageGiveaway({
           </Link>
         </section>
       ) : null}
-      {!beforeStart && !live && owed && owed !== "0" ? (
+      {!beforeStart && !live && owed ? (
         <Button
           size="lg"
           loading={busy}
-          onClick={() =>
-            void withWallet(async (wallet) => {
-              await withdraw(wallet, giveaway.chainId, giveaway.giveawayId);
+          onClick={() => {
+            if (gasFreeEnabled()) setWithdrawing(true);
+            else void withWallet(withdrawYourself);
+          }}
+        >
+          Withdraw {formatTokenAmount(owed.toString(), tokenDecimals(giveaway))} {symbol}
+        </Button>
+      ) : null}
+      {owed && withdrawing ? (
+        <PayoutSheet
+          open
+          onOpenChange={setWithdrawing}
+          title="Withdraw to a wallet"
+          amount={owed}
+          decimals={tokenDecimals(giveaway)}
+          symbol={symbol}
+          self={giveaway.host}
+          loadQuote={() =>
+            quoteWithdraw({
+              chainId: giveaway.chainId,
+              host: giveaway.host,
+              token: giveaway.token,
+              owed,
             })
           }
-        >
-          Withdraw {owed} {symbol}
-        </Button>
+          confirmLabel="Withdraw"
+          busyLabel="Withdrawing"
+          onConfirm={async (recipient, quote) => {
+            await withdrawToWallet({
+              chainId: giveaway.chainId,
+              giveawayId: giveaway.giveawayId,
+              token: giveaway.token,
+              owed,
+              recipient,
+              quote,
+            });
+            setOwed(0n);
+          }}
+          fallback={{
+            label: "Pay the network fee yourself",
+            run: async () => withdrawYourself(await connectWallet(giveaway.chainId)),
+          }}
+        />
       ) : null}
       {error ? <ErrorNote>{error}</ErrorNote> : null}
       <Sheet open={confirm} onOpenChange={setConfirm} title="Cancel this giveaway?">
-        <p>The prize comes back to your wallet. Players will see it was cancelled.</p>
+        <p>
+          The prize comes back to your wallet
+          {hostsGasFree() ? ", less a small network fee in the same token" : ""}. Players will see
+          it was cancelled.
+        </p>
         <Button
           variant="danger"
           loading={busy}
           onClick={() =>
             void withWallet(async (wallet) => {
-              await cancelGiveaway(wallet, giveaway.chainId, giveaway.giveawayId);
+              if (hostsGasFree()) {
+                await cancelGasFree({
+                  chainId: giveaway.chainId,
+                  giveawayId: giveaway.giveawayId,
+                  token: giveaway.token,
+                  prize: BigInt(giveaway.prize),
+                });
+              } else {
+                await cancelGiveaway(wallet, giveaway.chainId, giveaway.giveawayId);
+              }
               setConfirm(false);
             })
           }

@@ -13,7 +13,7 @@ import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
 import { keccak256, toHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { PayoutTree, PAYOUT_LEAF_ENCODING } from "../src/tree.js";
-import { relayDigest } from "../src/relay.js";
+import { executeDigest, relayDigest } from "../src/relay.js";
 import {
   settlementDigest,
   settlementTypedData,
@@ -49,6 +49,14 @@ export interface ParityFixture {
     withdrawTo: Record<string, string> & { digest: Hex };
     setPayoutWallet: Record<string, string> & { digest: Hex };
     createGiveaway: Record<string, string> & { digest: Hex };
+    /** A batch for FairDropsAccount, verified by the embedded wallet itself. */
+    execute: {
+      account: Address;
+      calls: { to: Address; value: string; data: Hex }[];
+      nonce: string;
+      deadline: string;
+      digest: Hex;
+    };
   };
 }
 
@@ -163,6 +171,27 @@ function relayFixture(chainId: number, contract: Address, giveawayId: Hex) {
       ...strings(createGiveaway),
       digest: relayDigest(chainId, contract, "CreateGiveaway", createGiveaway),
     },
+    execute: executeFixture(chainId),
+  };
+}
+
+function executeFixture(chainId: number) {
+  const account = "0x00000000000000000000000000000000000000e5" as Address;
+  const calls = [
+    {
+      to: "0x036cbd53842c5426634e7929541ec2318f3dcf7e" as Address,
+      value: 0n,
+      data: "0xa9059cbb00000000000000000000000000000000000000000000000000000000000000d40000000000000000000000000000000000000000000000000000000000000064" as Hex,
+    },
+    { to: "0x00000000000000000000000000000000000000d4" as Address, value: 5n, data: "0x" as Hex },
+  ];
+  const message = { calls, nonce: 2n, deadline: 1_900_000_000n };
+  return {
+    account,
+    calls: calls.map((call) => ({ to: call.to, value: call.value.toString(), data: call.data })),
+    nonce: message.nonce.toString(),
+    deadline: message.deadline.toString(),
+    digest: executeDigest(chainId, account, message),
   };
 }
 

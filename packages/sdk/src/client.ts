@@ -7,6 +7,8 @@ import {
   giveawayViewSchema,
   leaderboardsViewSchema,
   meResponseSchema,
+  relayQuoteSchema,
+  relayViewSchema,
   membershipViewSchema,
   nonceResponseSchema,
   pageSchema,
@@ -28,6 +30,10 @@ import {
   type Hex,
   type LeaderboardsView,
   type MeResponse,
+  type RelayQuote,
+  type RelayQuoteQueryInput,
+  type RelayRequestInput,
+  type RelayView,
   type MembershipView,
   type Page,
   type PricesResponse,
@@ -296,6 +302,36 @@ export class FairDrops {
     /** Question banks a quiz can draw from: names and sizes, never the questions. */
     quizBanks: (): Promise<QuizBankView[]> =>
       this.http.get("/quiz-banks", { schema: quizBankViewSchema.array() }),
+  };
+
+  /**
+   * Gas-free actions: quote the relayer's fee, submit a signed action, follow it. The helpers in
+   * `@fairdrops/sdk/relay` build and sign the requests.
+   */
+  readonly relay = {
+    quote: (query: RelayQuoteQueryInput): Promise<RelayQuote> =>
+      this.http.get("/relay/quote", {
+        query: { ...query } as Record<string, string | number | undefined>,
+        schema: relayQuoteSchema,
+        auth: "required",
+      }),
+
+    submit: (request: RelayRequestInput): Promise<RelayView> =>
+      this.http.post("/relay", { body: request, schema: relayViewSchema, auth: "required" }),
+
+    get: (id: string): Promise<RelayView> =>
+      this.http.get(`/relay/${id}`, { schema: relayViewSchema }),
+
+    /** Polls until the action is mined or fails; resolves either way with its final state. */
+    wait: async (id: string, options: { intervalMs?: number; timeoutMs?: number } = {}) => {
+      const deadline = Date.now() + (options.timeoutMs ?? 180_000);
+      for (;;) {
+        const view = await this.relay.get(id);
+        if (view.status === "MINED" || view.status === "FAILED") return view;
+        if (Date.now() > deadline) return view;
+        await new Promise((resolve) => setTimeout(resolve, options.intervalMs ?? 2_000));
+      }
+    },
   };
 
   /** Top winners and hosts, all time, from finalized giveaways. */

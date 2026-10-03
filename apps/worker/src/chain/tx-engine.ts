@@ -7,7 +7,7 @@ import {
   type ChainTxKind,
   type ChainTxStatus,
 } from "@fairdrops/db";
-import { findChain, type Address, type Hex } from "@fairdrops/shared";
+import { findChain, type Address, type Hex, type SignedAuthorization } from "@fairdrops/shared";
 import { Redis } from "ioredis";
 import { BaseError, HttpRequestError, TimeoutError, keccak256 } from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
@@ -42,6 +42,8 @@ export interface TxIntent {
   to: Address;
   data: Hex;
   value?: bigint;
+  /** EIP-7702 authorizations to send with it (a type-4 transaction). */
+  authorizationList?: SignedAuthorization[];
 }
 
 /** The node refused the transaction outright, so its nonce was not used. */
@@ -113,7 +115,13 @@ export class TxEngine {
     const account = this.keyring.sender(intent.sender);
     const from = account.address.toLowerCase() as Address;
     const rpc = this.rpcs(intent.chainId);
-    const call = { from, to: intent.to, data: intent.data, value: intent.value ?? 0n };
+    const call = {
+      from,
+      to: intent.to,
+      data: intent.data,
+      value: intent.value ?? 0n,
+      ...(intent.authorizationList ? { authorizationList: intent.authorizationList } : {}),
+    };
     await rpc.simulate(call);
     const estimate = await rpc.estimateGas(call);
     const gas = estimate + (estimate * GAS_BUFFER_BPS) / 10_000n;
@@ -132,6 +140,7 @@ export class TxEngine {
           gas,
           nonce,
           fees,
+          authorizationList: intent.authorizationList,
         });
         let row: ChainTransaction;
         try {
@@ -145,6 +154,9 @@ export class TxEngine {
               to: intent.to.toLowerCase(),
               data: intent.data,
               value: call.value.toString(),
+              ...(intent.authorizationList
+                ? { authorizations: intent.authorizationList as unknown as Prisma.InputJsonArray }
+                : {}),
               gasLimit: gas.toString(),
               ...feeColumns(fees),
               raw,
@@ -300,6 +312,7 @@ export class TxEngine {
       gas: BigInt(row.gasLimit.toFixed()),
       nonce: row.nonce,
       fees,
+      authorizationList: (row.authorizations as SignedAuthorization[] | null) ?? undefined,
     });
     const updated = await this.db.chainTransaction.update({
       where: { id: row.id },
@@ -316,7 +329,15 @@ export class TxEngine {
   private async sign(
     account: PrivateKeyAccount,
     rpc: ChainRpc,
-    tx: { to: Address; data: Hex; value: bigint; gas: bigint; nonce: number; fees: FeeQuote },
+    tx: {
+      to: Address;
+      data: Hex;
+      value: bigint;
+      gas: bigint;
+      nonce: number;
+      fees: FeeQuote;
+      authorizationList?: SignedAuthorization[] | undefined;
+    },
   ): Promise<Hex> {
     const base = {
       chainId: rpc.chainId,
@@ -326,6 +347,20 @@ export class TxEngine {
       gas: tx.gas,
       nonce: tx.nonce,
     };
+    if (tx.authorizationList?.length) {
+      // EIP-7702 transactions are always fee-market transactions.
+      const [maxFeePerGas, maxPriorityFeePerGas] =
+        tx.fees.type === "eip1559"
+          ? [tx.fees.maxFeePerGas, tx.fees.maxPriorityFeePerGas]
+          : [tx.fees.gasPrice, tx.fees.gasPrice];
+      return account.signTransaction({
+        ...base,
+        type: "eip7702",
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        authorizationList: tx.authorizationList,
+      });
+    }
     return tx.fees.type === "eip1559"
       ? account.signTransaction({
           ...base,

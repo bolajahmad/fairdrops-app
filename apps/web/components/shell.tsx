@@ -13,6 +13,7 @@ import { copy } from "@/lib/copy";
 const LINKS = [
   { href: "/", label: copy.discover },
   { href: "/me/prizes", label: copy.prizes },
+  { href: "/me/wallet", label: copy.wallet },
   { href: "/host", label: copy.hosting },
   { href: "/developers", label: copy.developers },
 ];

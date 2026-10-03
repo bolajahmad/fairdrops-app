@@ -29,6 +29,8 @@ import {
   tokenSymbol,
 } from "@/lib/format";
 import { connectWallet } from "@/lib/wallet";
+import { collectGasFree, gasFreeEnabled, quoteCollect, setPayoutGasFree } from "@/lib/gas-free";
+import { PayoutSheet } from "@/components/payout-sheet";
 
 type Filter = "all" | "collect" | "collected";
 
@@ -40,6 +42,8 @@ export function PrizesScreen() {
   const [titles, setTitles] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<Filter>("all");
   const [collecting, setCollecting] = useState<string | null>(null);
+  // The prize whose gas-free collect sheet is open.
+  const [sheetFor, setSheetFor] = useState<ClaimView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [breakdown, setBreakdown] = useState(false);
   const prices = usePrices();
@@ -76,13 +80,22 @@ export function PrizesScreen() {
     };
   }, [signedIn, apply]);
 
+  /** Collects paying the gas from the winner's own wallet. */
+  async function collectYourself(claim: ClaimView) {
+    const wallet = await connectWallet(claim.chainId);
+    await claimPrize(wallet, claim);
+    await load();
+  }
+
   async function collect(claim: ClaimView) {
+    if (gasFreeEnabled()) {
+      setSheetFor(claim);
+      return;
+    }
     setCollecting(keyOf(claim));
     setError(null);
     try {
-      const wallet = await connectWallet(claim.chainId);
-      await claimPrize(wallet, claim);
-      await load();
+      await collectYourself(claim);
     } catch (caught) {
       setError(friendlyError(caught, "The prize wasn't collected. Try again."));
     } finally {
@@ -230,6 +243,28 @@ export function PrizesScreen() {
 
         {error ? <ErrorNote>{error}</ErrorNote> : null}
       </div>
+      {sheetFor ? (
+        <PayoutSheet
+          open
+          onOpenChange={(open) => !open && setSheetFor(null)}
+          title="Collect your prize"
+          amount={BigInt(sheetFor.amount)}
+          decimals={tokenDecimals(sheetFor)}
+          symbol={tokenSymbol(sheetFor)}
+          self={sheetFor.recipient}
+          loadQuote={() => quoteCollect(sheetFor)}
+          confirmLabel={copy.collect}
+          busyLabel={copy.collecting}
+          onConfirm={async (recipient, quote) => {
+            await collectGasFree(sheetFor, { recipient, quote });
+            await load();
+          }}
+          fallback={{
+            label: "Pay the network fee yourself",
+            run: () => collectYourself(sheetFor),
+          }}
+        />
+      ) : null}
     </Shell>
   );
 }
@@ -321,8 +356,12 @@ function PayoutCard({
     setSaving(true);
     onError(null);
     try {
-      const wallet = await connectWallet(claim.chainId);
-      await setPayoutWallet(wallet, claim.chainId, claim.contract, payTo as `0x${string}`);
+      if (gasFreeEnabled()) {
+        await setPayoutGasFree(claim.chainId, payTo as `0x${string}`);
+      } else {
+        const wallet = await connectWallet(claim.chainId);
+        await setPayoutWallet(wallet, claim.chainId, claim.contract, payTo as `0x${string}`);
+      }
       setRecipient(payTo.toLowerCase() as `0x${string}`);
       setEditing(false);
     } catch (caught) {

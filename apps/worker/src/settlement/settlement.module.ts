@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { SessionsModule } from "../sessions/sessions.module.js";
 import { ClaimRelayer } from "./claim-relayer.js";
 import { GiveawayUnwinder } from "./giveaway-unwinder.js";
+import { RelayProcessor } from "./relay-processor.js";
 import { SettlementBuilder } from "./settlement-builder.js";
 import { SettlementQueues } from "./settlement-queues.js";
 import { SettlementReconciler } from "./settlement-reconciler.js";
@@ -18,6 +19,7 @@ import { SettlementVerifier } from "./settlement-verifier.js";
     GiveawayUnwinder,
     SettlementQueues,
     SettlementReconciler,
+    RelayProcessor,
   ],
   exports: [
     SettlementBuilder,
@@ -27,6 +29,7 @@ import { SettlementVerifier } from "./settlement-verifier.js";
     GiveawayUnwinder,
     SettlementQueues,
     SettlementReconciler,
+    RelayProcessor,
   ],
 })
 export class SettlementModule {}

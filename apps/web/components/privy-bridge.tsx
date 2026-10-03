@@ -6,6 +6,7 @@ import {
   useLogin,
   useLoginWithOAuth,
   usePrivy,
+  useSign7702Authorization,
   useWallets,
 } from "@privy-io/react-auth";
 import { useEffect, useState, type ReactNode } from "react";
@@ -14,7 +15,7 @@ import { friendlyError } from "@/lib/errors";
 import { browserFairDrops } from "@/lib/fairdrops";
 import { isOAuth, registerSocial, reportSocialError, SOCIAL_PROVIDERS } from "@/lib/social";
 import { hostChains } from "@/lib/tokens";
-import { setEmbeddedWallet } from "@/lib/wallet";
+import { setAuthorizationSigner, setEmbeddedWallet } from "@/lib/wallet";
 
 const APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 
@@ -67,6 +68,7 @@ function PrivyBridge() {
     },
   });
   const { wallets } = useWallets();
+  const { signAuthorization } = useSign7702Authorization();
   // Whether the current FairDrops session came from a social login.
   const [social, setSocial] = useState(false);
 
@@ -114,8 +116,25 @@ function PrivyBridge() {
     const wallet = wallets.find((candidate) => candidate.walletClientType === "privy");
     if (!social || !wallet) {
       setEmbeddedWallet(null);
+      setAuthorizationSigner(null);
       return;
     }
+    // The first gas-free action points the wallet at FairDrops' account contract (EIP-7702).
+    // The relayer sends it, so the nonce is the wallet's own, as the API quoted it.
+    setAuthorizationSigner(async ({ contractAddress, chainId, nonce }) => {
+      const signed = await signAuthorization(
+        { contractAddress, chainId, nonce },
+        { address: wallet.address },
+      );
+      return {
+        address: signed.address,
+        chainId: signed.chainId,
+        nonce: signed.nonce,
+        r: signed.r,
+        s: signed.s,
+        yParity: signed.yParity,
+      };
+    });
     let live = true;
     void wallet
       .getEthereumProvider()
@@ -124,7 +143,7 @@ function PrivyBridge() {
     return () => {
       live = false;
     };
-  }, [wallets, social]);
+  }, [wallets, social, signAuthorization]);
 
   return null;
 }

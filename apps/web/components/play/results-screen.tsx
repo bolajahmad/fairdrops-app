@@ -34,6 +34,9 @@ import {
 import { chainName } from "@/lib/tokens";
 import { playBlip } from "@/lib/sound";
 import { connectWallet } from "@/lib/wallet";
+import { collectGasFree, gasFreeEnabled, quoteCollect } from "@/lib/gas-free";
+import { PayoutSheet } from "@/components/payout-sheet";
+import { copy } from "@/lib/copy";
 
 const RELAY_WAIT_MS = 120_000;
 const STEPS = ["Scores locked", "Checking every score", "Unlocking prizes"];
@@ -80,7 +83,15 @@ export function ResultsScreen({ sessionId }: { sessionId: string }) {
   const [seenAt, setSeenAt] = useState<number | null>(null);
   const [waited, setWaited] = useState(0);
   const [collecting, setCollecting] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [attempt, setAttempt] = useState(0);
+
+  /** Collects paying the gas from the winner's own wallet. */
+  async function collectYourself(found: ClaimView) {
+    const wallet = await connectWallet(found.chainId);
+    await claimPrize(wallet, found);
+    setClaim({ ...found, claimedAt: new Date().toISOString() });
+  }
 
   useEffect(() => {
     let cancel = false;
@@ -306,11 +317,13 @@ export function ResultsScreen({ sessionId }: { sessionId: string }) {
           verifyHref={`${giveawayHref}/verify`}
           onCollect={() => {
             if (!claim) return;
+            if (gasFreeEnabled()) {
+              setSheetOpen(true);
+              return;
+            }
             setCollecting(true);
             setActionError(null);
-            void connectWallet(claim.chainId)
-              .then((wallet) => claimPrize(wallet, claim))
-              .then(() => setClaim({ ...claim, claimedAt: new Date().toISOString() }))
+            void collectYourself(claim)
               .catch((caught: unknown) =>
                 setActionError(friendlyError(caught, "The prize wasn't collected. Try again.")),
               )
@@ -360,6 +373,28 @@ export function ResultsScreen({ sessionId }: { sessionId: string }) {
         </div>
         {actionError ? <ErrorNote>{actionError}</ErrorNote> : null}
       </div>
+      {claim && sheetOpen ? (
+        <PayoutSheet
+          open
+          onOpenChange={setSheetOpen}
+          title="Collect your prize"
+          amount={BigInt(claim.amount)}
+          decimals={decimals}
+          symbol={symbol ?? ""}
+          self={claim.recipient}
+          loadQuote={() => quoteCollect(claim)}
+          confirmLabel={copy.collect}
+          busyLabel={copy.collecting}
+          onConfirm={async (recipient, quote) => {
+            await collectGasFree(claim, { recipient, quote });
+            setClaim({ ...claim, claimedAt: new Date().toISOString() });
+          }}
+          fallback={{
+            label: "Pay the network fee yourself",
+            run: () => collectYourself(claim),
+          }}
+        />
+      ) : null}
     </Frame>
   );
 }

@@ -2,6 +2,7 @@
 
 import { findChain } from "@fairdrops/shared";
 import { fairDropsChain } from "@fairdrops/sdk/host";
+import type { AuthorizationSigner } from "@fairdrops/sdk/relay";
 import { createWalletClient, custom, numberToHex, type Address, type WalletClient } from "viem";
 
 /**
@@ -182,4 +183,16 @@ export async function connectWallet(chainId: number): Promise<WalletClient> {
     chain: fairDropsChain(chainId),
     transport: custom(ethereum),
   });
+}
+
+/** Signs EIP-7702 authorizations with the embedded wallet; set by the Privy bridge. */
+let authorizationSigner: AuthorizationSigner | null = null;
+
+export function setAuthorizationSigner(signer: AuthorizationSigner | null): void {
+  authorizationSigner = signer;
+}
+
+/** How the embedded wallet authorizes FairDrops' gas-free account, the first time it's used. */
+export function signAuthorization(): AuthorizationSigner | undefined {
+  return authorizationSigner ?? undefined;
 }
