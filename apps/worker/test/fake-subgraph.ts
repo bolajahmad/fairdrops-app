@@ -10,7 +10,7 @@ import type {
 import type { IndexTarget } from "../src/indexer/targets.js";
 
 export const CHAIN = findChain(10143)!;
-export const CONTRACT = "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca" as Address;
+export const CONTRACT = "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72" as Address;
 export const TARGET: IndexTarget = {
   chain: CHAIN,
   contractAddress: CONTRACT,

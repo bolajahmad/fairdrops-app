@@ -33,7 +33,7 @@ import {
 } from "@/lib/format";
 import { chainName } from "@/lib/tokens";
 import { playBlip } from "@/lib/sound";
-import { connectInjectedWallet } from "@/lib/wallet";
+import { connectWallet } from "@/lib/wallet";
 
 const RELAY_WAIT_MS = 120_000;
 const STEPS = ["Scores locked", "Checking every score", "Unlocking prizes"];
@@ -308,7 +308,7 @@ export function ResultsScreen({ sessionId }: { sessionId: string }) {
             if (!claim) return;
             setCollecting(true);
             setActionError(null);
-            void connectInjectedWallet(claim.chainId)
+            void connectWallet(claim.chainId)
               .then((wallet) => claimPrize(wallet, claim))
               .then(() => setClaim({ ...claim, claimedAt: new Date().toISOString() }))
               .catch((caught: unknown) =>

@@ -34,7 +34,7 @@ const roundsConfigShape = z.strictObject({
   winnersPerRound: z.number().int().min(1).max(contractLimits.maxWinners),
   /** Rounds keep starting while they can end within this long after the start. */
   playSeconds: z.number().int().min(1).max(MAX_PLAY_SECONDS),
-  cooldownSeconds: z.number().int().min(3).max(120).default(10),
+  cooldownSeconds: z.number().int().min(3).max(30).default(20),
   /** Null for no limit. */
   maxWinsPerPlayer: z.number().int().min(1).nullable().default(null),
   minScore: z.number().int().default(1),
@@ -87,6 +87,8 @@ export interface RoundsPublicView {
   /** Start and end of `round`. */
   startsAt: number;
   endsAt: number;
+  /** The next round to start after now, if there is one: where late joiners come in. */
+  next: { startsAt: number; game: { id: string; version: string } } | null;
   places: number;
   /** Places won so far, in order. */
   awards: Award[];
@@ -379,6 +381,11 @@ export function createRoundsGame(
         game: ref(slot.game),
         startsAt: slot.startAt,
         endsAt: slot.endAt,
+        next: (() => {
+          if (phase === "over") return null;
+          const upcoming = state.schedule.find((candidate) => candidate.startAt > now);
+          return upcoming ? { startsAt: upcoming.startAt, game: ref(upcoming.game) } : null;
+        })(),
         places: state.config.places,
         awards,
         winnersPerRound: state.config.winnersPerRound,

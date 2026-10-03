@@ -156,6 +156,34 @@ describe("session runtime", () => {
     expect(verifyTranscript(transcript)).toEqual({ ok: true });
   });
 
+  it("gives every player a fresh view when the next round starts", async () => {
+    // Round 0 (10 s) ends in about a second; round 1 starts after a 3 s break.
+    const session = await runningSession(
+      h,
+      { id: "dice", config: { windowSeconds: 10, rolls: 1 } },
+      [ALICE, BOB],
+      9_000,
+      { rounds: { winnersPerRound: 1, playSeconds: 60, cooldownSeconds: 3 } },
+    );
+    const feed = await listen(session.id);
+    await send(h.redis, session.id, ALICE, "a0", roll);
+    await send(h.redis, session.id, BOB, "b0", roll);
+    const running = owner(h, session.id).then((o) => o.run());
+
+    // Bob used his roll in round 0 and doesn't act again, yet must see round 1 with a roll
+    // available, not round 0's "no rolls left".
+    await new Promise((resolve) => setTimeout(resolve, 4_500));
+    const bobViews = feed.events.flatMap((event) =>
+      event.kind === "player" && event.player === BOB && event.view ? [event.view] : [],
+    ) as { playing: boolean; view: { remaining: number } | null }[];
+    expect(bobViews.at(-1)).toMatchObject({ playing: true, view: { remaining: 1 } });
+
+    await send(h.redis, session.id, BOB, "b1", roll);
+    await send(h.redis, session.id, ALICE, "a1", roll);
+    await expect(running).resolves.toBe("settled");
+    feed.close();
+  }, 30_000);
+
   it("scores a quiz, rejecting late answers but logging them", async () => {
     // One 5 second question that opened 3.5 seconds ago.
     const config = { bank: BANK_HASH, questions: 1, secondsPerQuestion: 5, revealSeconds: 0 };

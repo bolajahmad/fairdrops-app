@@ -227,7 +227,8 @@ contract FairDropsAdminTest is FairDropsTestBase {
             verifierThreshold: 1,
             verifiers: verifiers,
             operators: new address[](0),
-            pausers: new address[](0)
+            pausers: new address[](0),
+            relayers: new address[](0)
         });
     }
 }

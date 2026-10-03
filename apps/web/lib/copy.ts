@@ -47,6 +47,14 @@ export const copy = {
   comingSoon: "Coming soon",
   signIn: {
     wallet: "Connect a wallet",
+    useWallet: "Use a wallet instead",
+    continueWith: {
+      google: "Continue with Google",
+      email: "Continue with email",
+      passkey: "Continue with a passkey",
+    },
+    socialNote:
+      "No password and nothing to install. We set up a wallet for your prizes; you never need to touch it.",
     continueAs: (wallet: string) => `Continue as ${wallet}`,
     note: "Signing in only asks your wallet to sign a message. It never sends money or costs a fee.",
     developersTitle: "Sign in to manage your games",
@@ -118,9 +126,9 @@ export const create = {
     externalAlone: "Your own games run on their own, so they can't take turns in rounds yet.",
     order: (n: number) => `Round order ${n}`,
     describeAuto:
-      "We'll run Dice: each player rolls two dice three times within two minutes, and the highest total wins. It's fast, needs no knowledge, and works for any crowd.",
+      "We'll run Dice: each player rolls two dice three times within 20 seconds, and the highest total wins. It's fast, needs no knowledge, and works for any crowd.",
     describe: {
-      dice: "Each player rolls two dice three times within two minutes. The highest total wins, and ties go to the best single roll.",
+      dice: "Each player rolls two dice three times within 20 seconds. The highest total wins, and ties go to the best single roll.",
       quiz: "Timed multiple-choice questions, drawn at random from the question bank below. Most right answers wins; ties go to whoever answered fastest.",
     } as Record<string, string>,
     questionsFrom: "Questions from",
@@ -141,7 +149,7 @@ export const create = {
     fewerWins: "Fewer prizes per person",
     moreWins: "More prizes per person",
     noLimit: "No limit",
-    breakSeconds: "Break between rounds (seconds)",
+    breakSeconds: "Break between rounds (seconds, up to 30)",
     playsFor: "Plays for",
     describe: (o: {
       perRound: number;
@@ -177,9 +185,9 @@ export const create = {
     toggle: "Advanced settings",
     lead: "Fine-tune the game. The defaults suit most giveaways.",
     rolls: "Rolls per player",
-    window: "Play time (seconds)",
+    window: "Play time (seconds, 10 to 30)",
     questions: "Questions",
-    secondsPerQuestion: "Seconds per question",
+    secondsPerQuestion: "Seconds per question (5 to 30)",
     minScore: "Minimum score to win",
     minScoreHint: "Players below this never win, even if there are spare places.",
   },

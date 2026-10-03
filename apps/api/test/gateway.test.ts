@@ -159,6 +159,43 @@ describe("session gateway", () => {
     ]);
   });
 
+  it("lets a player play on one device at a time, the newest taking over", async () => {
+    const session = await createSession(t.db, { status: "RUNNING" });
+    const { user } = await playerSocket(session.id);
+    const phone = await connect(await ticketFor(user));
+    const laptop = await connect(await ticketFor(user));
+
+    phone.send({ type: "subscribe", sessionId: session.id });
+    await phone.next("snapshot");
+    laptop.send({ type: "subscribe", sessionId: session.id });
+    await laptop.next("snapshot");
+    await expect(phone.next("displaced")).resolves.toEqual({
+      type: "displaced",
+      sessionId: session.id,
+    });
+
+    phone.send({ type: "action", sessionId: session.id, id: "p1", action: { type: "roll" } });
+    await expect(phone.next("error")).resolves.toMatchObject({
+      code: "PLAYING_ELSEWHERE",
+      id: "p1",
+    });
+    laptop.send({ type: "action", sessionId: session.id, id: "l1", action: { type: "roll" } });
+    await expect(laptop.next("received")).resolves.toMatchObject({ id: "l1" });
+
+    // "Play here instead" moves it back.
+    phone.send({ type: "subscribe", sessionId: session.id, claim: true });
+    await expect(laptop.next("displaced")).resolves.toMatchObject({ sessionId: session.id });
+    phone.send({ type: "action", sessionId: session.id, id: "p2", action: { type: "roll" } });
+    await expect(phone.next("received")).resolves.toMatchObject({ id: "p2" });
+
+    // Watching doesn't take the seat.
+    const tablet = await connect(await ticketFor(user));
+    tablet.send({ type: "subscribe", sessionId: session.id, claim: false });
+    await tablet.next("snapshot");
+    phone.send({ type: "action", sessionId: session.id, id: "p3", action: { type: "roll" } });
+    await expect(phone.next("received")).resolves.toMatchObject({ id: "p3" });
+  });
+
   it("refuses actions that cannot count", async () => {
     const running = await createSession(t.db, { status: "RUNNING" });
     const upcoming = await createSession(t.db);

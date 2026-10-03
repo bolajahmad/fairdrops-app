@@ -53,7 +53,8 @@ export const quizConfigSchema = z.strictObject({
   /** Hash of the question bank to draw from. */
   bank: bytes32Schema,
   questions: z.number().int().min(1).max(50).default(10),
-  secondsPerQuestion: z.number().int().min(5).max(60).default(15),
+  /** Time to read and answer one question. Long questions still have to be answered in time. */
+  secondsPerQuestion: z.number().int().min(5).max(30).default(20),
   /** Pause after each question in which the answer is shown. */
   revealSeconds: z.number().int().min(0).max(15).default(3),
 });

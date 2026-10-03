@@ -39,7 +39,8 @@ contract FairDropsParityTest is Test {
                     verifierThreshold: 1,
                     verifiers: none,
                     operators: none,
-                    pausers: none
+                    pausers: none,
+                    relayers: none
                 })
             ),
             json.readAddress(".contract")
@@ -80,6 +81,98 @@ contract FairDropsParityTest is Test {
             json.readAddress(".verifier"),
             "signer"
         );
+    }
+
+    /// @dev Signed actions: the digests TypeScript signs must be the ones the contract checks.
+    function test_RelayTypehashesMatch() public view {
+        bytes32 domain = keccak256(
+            abi.encode(
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
+                keccak256("FairDrops"),
+                keccak256("1"),
+                block.chainid,
+                address(fd)
+            )
+        );
+
+        bytes32 claimTo = keccak256(
+            abi.encode(
+                fd.CLAIM_TO_TYPEHASH(),
+                json.readBytes32(".relay.claimTo.giveawayId"),
+                json.readAddress(".relay.claimTo.account"),
+                _uint(".relay.claimTo.amount"),
+                json.readAddress(".relay.claimTo.recipient"),
+                _uint(".relay.claimTo.fee"),
+                _uint(".relay.claimTo.nonce"),
+                _uint(".relay.claimTo.deadline")
+            )
+        );
+        assertEq(_digest(domain, claimTo), json.readBytes32(".relay.claimTo.digest"), "ClaimTo");
+
+        bytes32 withdrawTo = keccak256(
+            abi.encode(
+                fd.WITHDRAW_TO_TYPEHASH(),
+                json.readBytes32(".relay.withdrawTo.giveawayId"),
+                json.readAddress(".relay.withdrawTo.host"),
+                json.readAddress(".relay.withdrawTo.recipient"),
+                _uint(".relay.withdrawTo.fee"),
+                _uint(".relay.withdrawTo.nonce"),
+                _uint(".relay.withdrawTo.deadline")
+            )
+        );
+        assertEq(
+            _digest(domain, withdrawTo), json.readBytes32(".relay.withdrawTo.digest"), "WithdrawTo"
+        );
+
+        bytes32 payoutWallet = keccak256(
+            abi.encode(
+                fd.PAYOUT_WALLET_TYPEHASH(),
+                json.readAddress(".relay.setPayoutWallet.account"),
+                json.readAddress(".relay.setPayoutWallet.wallet"),
+                _uint(".relay.setPayoutWallet.nonce"),
+                _uint(".relay.setPayoutWallet.deadline")
+            )
+        );
+        assertEq(
+            _digest(domain, payoutWallet),
+            json.readBytes32(".relay.setPayoutWallet.digest"),
+            "SetPayoutWallet"
+        );
+
+        assertEq(
+            _digest(domain, _createHash()),
+            json.readBytes32(".relay.createGiveaway.digest"),
+            "CreateGiveaway"
+        );
+    }
+
+    /// @dev Split out to keep the stack shallow.
+    function _createHash() private view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                fd.CREATE_GIVEAWAY_TYPEHASH(),
+                json.readAddress(".relay.createGiveaway.host"),
+                json.readAddress(".relay.createGiveaway.token"),
+                _uint(".relay.createGiveaway.amount"),
+                uint64(_uint(".relay.createGiveaway.startTime")),
+                uint64(_uint(".relay.createGiveaway.finalizeDeadline")),
+                uint32(_uint(".relay.createGiveaway.maxWinners")),
+                json.readBytes32(".relay.createGiveaway.metadataHash"),
+                _uint(".relay.createGiveaway.relayFee"),
+                _uint(".relay.createGiveaway.nonce"),
+                _uint(".relay.createGiveaway.deadline")
+            )
+        );
+    }
+
+    function _uint(string memory key) private view returns (uint256) {
+        return vm.parseUint(json.readString(key));
+    }
+
+    function _digest(bytes32 domain, bytes32 structHash) private pure returns (bytes32) {
+        return keccak256(abi.encodePacked("\x19\x01", domain, structHash));
     }
 
     function _payout(uint256 i, string memory field) private pure returns (string memory) {

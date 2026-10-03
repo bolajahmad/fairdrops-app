@@ -60,6 +60,8 @@ abstract contract FairDropsTestBase is Test {
         operators[0] = operator;
         address[] memory pausers = new address[](1);
         pausers[0] = pauser;
+        address[] memory relayers = new address[](1);
+        relayers[0] = relayer;
 
         return new FairDrops(
             IFairDrops.InitParams({
@@ -71,7 +73,8 @@ abstract contract FairDropsTestBase is Test {
                 verifierThreshold: threshold,
                 verifiers: verifiers,
                 operators: operators,
-                pausers: pausers
+                pausers: pausers,
+                relayers: relayers
             })
         );
     }

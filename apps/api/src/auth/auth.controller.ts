@@ -2,11 +2,13 @@ import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res, UseGuards } fr
 import {
   AUTH_LIFETIMES,
   nonceRequestSchema,
+  privySignInRequestSchema,
   refreshRequestSchema,
   verifyRequestSchema,
   type MeResponse,
   type NonceRequest,
   type NonceResponse,
+  type PrivySignInRequest,
   type RefreshRequest,
   type SessionResponse,
   type TokenTransport,
@@ -60,6 +62,20 @@ export class AuthController {
     return this.deliver(issued, body.transport, response);
   }
 
+  /** Social sign-in: trades a Privy access token for a FairDrops session. */
+  @Post("privy")
+  @HttpCode(200)
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ name: "auth-privy", limit: 10, windowSeconds: 60, by: "ip" })
+  async privy(
+    @Body(new ZodValidationPipe(privySignInRequestSchema)) body: PrivySignInRequest,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<SessionResponse> {
+    const issued = await this.auth.signInWithPrivy(body.accessToken, request.header("user-agent"));
+    return this.deliver(issued, body.transport, response);
+  }
+
   /**
    * Rotates the refresh token. Web clients send the cookie, which is only accepted from a
    * first-party Origin; other clients send the token in the body.
@@ -100,7 +116,7 @@ export class AuthController {
   @Get("me")
   @UseGuards(AuthGuard)
   me(@CurrentAuth() auth: AuthContext): Promise<MeResponse> {
-    return this.profiles.me(auth.userId, auth.wallet, auth.roles);
+    return this.profiles.me(auth.userId, auth.wallet, auth.roles, auth.sessionId);
   }
 
   /** A single-use ticket for opening a WebSocket, which cannot carry an Authorization header. */

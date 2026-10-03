@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
+import type { LoginMethod } from "@fairdrops/db";
 import {
   AUTH_LIFETIMES,
   SIGN_IN_STATEMENT,
@@ -15,6 +16,7 @@ import { isUniqueViolation } from "../common/prisma-errors.js";
 import { PRISMA, type Database } from "../infra/prisma.module.js";
 import { ProfilesService } from "../profiles/profiles.service.js";
 import { AuthStore } from "./auth.store.js";
+import { PRIVY_GATEWAY, type PrivyGateway, type PrivyIdentity } from "./privy.gateway.js";
 import type { AuthContext } from "./auth.types.js";
 import { RolesService } from "./roles.service.js";
 import { SiweService, type VerifiedWallet } from "./siwe.service.js";
@@ -40,6 +42,7 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly roles: RolesService,
     private readonly profiles: ProfilesService,
+    @Inject(PRIVY_GATEWAY) private readonly privy: PrivyGateway,
   ) {}
 
   async nonce(address: Address): Promise<NonceResponse> {
@@ -50,7 +53,34 @@ export class AuthService {
   async signIn(body: VerifyRequest, userAgent: string | undefined): Promise<IssuedSession> {
     const wallet = await this.siwe.verify(body.message, body.signature, SIGN_IN_STATEMENT);
     const userId = await this.findOrCreateUser(wallet, body.connector);
-    return this.startSession({ userId, wallet: wallet.address, familyId: randomUUID(), userAgent });
+    return this.startSession({
+      userId,
+      wallet: wallet.address,
+      method: "wallet",
+      familyId: randomUUID(),
+      userAgent,
+    });
+  }
+
+  /**
+   * Social sign-in through Privy. Privy confirms who the token belongs to, and its user id maps
+   * to exactly one FairDrops account, created on first sign-in with the person's embedded
+   * wallet as its address. Signing in with Google and with X are two accounts unless the person
+   * links them in Privy.
+   */
+  async signInWithPrivy(
+    accessToken: string,
+    userAgent: string | undefined,
+  ): Promise<IssuedSession> {
+    const identity = await this.privy.identify(accessToken);
+    const userId = await this.findOrCreatePrivyUser(identity);
+    return this.startSession({
+      userId,
+      wallet: identity.wallet,
+      method: identity.method,
+      familyId: randomUUID(),
+      userAgent,
+    });
   }
 
   async refresh(refreshToken: string, userAgent: string | undefined): Promise<IssuedSession> {
@@ -80,6 +110,7 @@ export class AuthService {
     return this.startSession({
       userId: session.userId,
       wallet: session.walletAddress as Address,
+      method: session.method,
       familyId: session.familyId,
       userAgent,
     });
@@ -142,9 +173,55 @@ export class AuthService {
     }
   }
 
+  private async findOrCreatePrivyUser(identity: PrivyIdentity): Promise<string> {
+    const now = new Date();
+    const key = { provider_subject: { provider: "privy", subject: identity.userId } };
+    const existing = await this.db.authIdentity.findUnique({ where: key });
+    if (existing) {
+      await this.db.authIdentity.update({
+        where: key,
+        data: { lastSignInAt: now, handle: identity.handle, method: identity.method },
+      });
+      return existing.userId;
+    }
+
+    try {
+      const user = await this.db.user.create({
+        data: {
+          identities: {
+            create: {
+              provider: "privy",
+              subject: identity.userId,
+              method: identity.method,
+              handle: identity.handle,
+              lastSignInAt: now,
+            },
+          },
+          wallets: {
+            create: {
+              address: identity.wallet,
+              kind: "EOA",
+              connector: "privy",
+              lastSignInAt: now,
+            },
+          },
+        },
+      });
+      return user.id;
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      // Two first sign-ins raced and the other created the account.
+      const winner = await this.db.authIdentity.findUnique({ where: key });
+      if (winner) return winner.userId;
+      // The embedded wallet already belongs to another account: never merge silently.
+      throw AppException.conflict("This wallet already belongs to another FairDrops account");
+    }
+  }
+
   private async startSession(input: {
     userId: string;
     wallet: Address;
+    method: LoginMethod;
     familyId: string;
     userAgent: string | undefined;
   }): Promise<IssuedSession> {
@@ -155,6 +232,7 @@ export class AuthService {
         familyId: input.familyId,
         userId: input.userId,
         walletAddress: input.wallet,
+        method: input.method,
         refreshTokenHash: hashToken(refreshToken),
         expiresAt: refreshExpiresAt,
         userAgent: input.userAgent?.slice(0, 300),
@@ -169,7 +247,7 @@ export class AuthService {
       roles,
     };
     const access = await this.tokens.issue(context);
-    const me = await this.profiles.me(input.userId, input.wallet, roles);
+    const me = await this.profiles.me(input.userId, input.wallet, roles, session.id);
 
     return {
       refreshToken,

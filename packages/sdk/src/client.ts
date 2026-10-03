@@ -137,6 +137,20 @@ export class FairDrops {
       return session.me;
     },
 
+    /**
+     * Social sign-in: trades a Privy access token (from `getAccessToken()` in Privy's SDK) for a
+     * FairDrops session. The account's address is the person's Privy embedded wallet.
+     */
+    signInWithPrivy: async (accessToken: string): Promise<MeResponse> => {
+      const session = await this.http.post("/auth/privy", {
+        body: { accessToken, transport: this.http.transport },
+        schema: sessionResponseSchema,
+      });
+      this.http.accept(session);
+      this.me = session.me;
+      return session.me;
+    },
+
     signOut: async (): Promise<void> => {
       if (await this.http.accessToken()) {
         await this.http

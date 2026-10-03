@@ -23,6 +23,7 @@
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",
     "@nestjs/platform-express": "catalog:",
+    "@privy-io/node": "catalog:",
     "ioredis": "catalog:",
     "jose": "catalog:",
     "reflect-metadata": "catalog:",

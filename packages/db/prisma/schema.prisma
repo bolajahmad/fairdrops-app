@@ -29,6 +29,7 @@ model User {
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   wallets         Wallet[]
+  identities      AuthIdentity[]
   socials         SocialLink[]
   sessions        AuthSession[]
   apiKeys         ApiKey[]
@@ -49,7 +50,17 @@ enum WalletConnector {
   web3auth
   injected
   walletconnect
+  /// A Privy embedded wallet, created for someone who signed in with a social account.
+  privy
   other
+}
+
+/// How someone signed in. Everything except a wallet goes through Privy.
+enum LoginMethod {
+  wallet
+  google
+  email
+  passkey
 }
 
 model Wallet {
@@ -93,20 +104,40 @@ model SocialLink {
 
 // Authentication
 
+/// A sign-in identity from an outside provider: for Privy, its user id. One identity always
+/// means one account, so the same Google profile can never become two accounts.
+model AuthIdentity {
+  provider     String      @db.VarChar(32)
+  subject      String      @db.VarChar(128)
+  userId       String      @map("user_id") @db.Uuid
+  method       LoginMethod
+  /// The username or name the provider shows, for display only.
+  handle       String?     @db.VarChar(64)
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastSignInAt DateTime?   @map("last_sign_in_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, subject])
+  @@index([userId])
+  @@map("auth_identities")
+}
+
 model AuthSession {
-  id               String    @id @default(uuid(7)) @db.Uuid
+  id               String      @id @default(uuid(7)) @db.Uuid
   /// Shared by every rotation of one sign-in, so a replayed refresh token revokes them all.
-  familyId         String    @map("family_id") @db.Uuid
-  userId           String    @map("user_id") @db.Uuid
-  walletAddress    String    @map("wallet_address") @db.Char(42)
+  familyId         String      @map("family_id") @db.Uuid
+  userId           String      @map("user_id") @db.Uuid
+  walletAddress    String      @map("wallet_address") @db.Char(42)
+  method           LoginMethod @default(wallet)
   /// SHA-256 of the refresh token, hex encoded.
-  refreshTokenHash String    @unique @map("refresh_token_hash") @db.Char(64)
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
-  lastUsedAt       DateTime? @map("last_used_at") @db.Timestamptz(3)
-  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
-  revokedReason    String?   @map("revoked_reason")
-  userAgent        String?   @map("user_agent")
+  refreshTokenHash String      @unique @map("refresh_token_hash") @db.Char(64)
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt        DateTime    @map("expires_at") @db.Timestamptz(3)
+  lastUsedAt       DateTime?   @map("last_used_at") @db.Timestamptz(3)
+  revokedAt        DateTime?   @map("revoked_at") @db.Timestamptz(3)
+  revokedReason    String?     @map("revoked_reason")
+  userAgent        String?     @map("user_agent")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

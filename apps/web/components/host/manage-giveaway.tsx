@@ -26,7 +26,7 @@ import {
   tokenDecimals,
   tokenSymbol,
 } from "@/lib/format";
-import { connectInjectedWallet } from "@/lib/wallet";
+import { connectWallet } from "@/lib/wallet";
 
 export function ManageGiveaway({
   giveaway,
@@ -96,12 +96,12 @@ export function ManageGiveaway({
   }, [finished, session]);
 
   async function withWallet(
-    run: (wallet: Awaited<ReturnType<typeof connectInjectedWallet>>) => Promise<void>,
+    run: (wallet: Awaited<ReturnType<typeof connectWallet>>) => Promise<void>,
   ) {
     setBusy(true);
     setError(null);
     try {
-      const wallet = await connectInjectedWallet(giveaway.chainId);
+      const wallet = await connectWallet(giveaway.chainId);
       await run(wallet);
     } catch (caught) {
       setError(friendlyError(caught, "That didn't go through. Try again."));

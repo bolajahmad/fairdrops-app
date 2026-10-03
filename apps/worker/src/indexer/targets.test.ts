@@ -11,7 +11,7 @@ describe("resolveTargets", () => {
 
     expect(targets.map((t) => t.chain.key)).toEqual(["monad-testnet", "sepolia", "base-sepolia"]);
     expect(targets[0]).toMatchObject({
-      contractAddress: "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca",
+      contractAddress: "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72",
       endpoint:
         "https://api.goldsky.com/api/public/project_abc123/subgraphs/fairdrops-monad-testnet/prod/gn",
     });

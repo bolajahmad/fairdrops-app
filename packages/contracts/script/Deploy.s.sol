@@ -64,7 +64,9 @@ contract Deploy is Script {
             verifierThreshold: uint8(vm.envOr("FAIRDROPS_VERIFIER_THRESHOLD", uint256(1))),
             verifiers: vm.envAddress("FAIRDROPS_VERIFIERS", ","),
             operators: vm.envAddress("FAIRDROPS_OPERATORS", ","),
-            pausers: vm.envOr("FAIRDROPS_PAUSERS", ",", new address[](0))
+            pausers: vm.envOr("FAIRDROPS_PAUSERS", ",", new address[](0)),
+            // Who may collect prizes for winners unprompted; the operators unless set.
+            relayers: vm.envOr("FAIRDROPS_RELAYERS", ",", vm.envAddress("FAIRDROPS_OPERATORS", ","))
         });
     }
 }

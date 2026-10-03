@@ -5,13 +5,16 @@ Solidity with no chain-specific code, compiled for the Cancun EVM and deployed t
 deterministic CREATE2 deployer, so it has the same address on every chain that shares a
 configuration.
 
-| Chain                | Chain ID  | Environment |
-| -------------------- | --------- | ----------- |
-| Monad Testnet        | 10143     | testnet     |
-| Sepolia              | 11155111  | testnet     |
-| Base Sepolia         | 84532     | testnet     |
-| Polkadot Hub TestNet | 420420417 | testnet     |
-| Anvil                | 31337     | local       |
+| Chain         | Chain ID | Environment |
+| ------------- | -------- | ----------- |
+| Monad Testnet | 10143    | testnet     |
+| Sepolia       | 11155111 | testnet     |
+| Base Sepolia  | 84532    | testnet     |
+| Anvil         | 31337    | local       |
+
+The testnet deployment is `0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72` on all three chains.
+Polkadot Hub TestNet is still in the chain registry but has no deployment, since nothing can
+index it.
 
 The registry of chains lives in `packages/shared/src/chains.ts`. Adding a chain means adding
 an entry there and an RPC alias in `packages/contracts/foundry.toml`.
@@ -39,8 +42,6 @@ stateDiagram-v2
     Withdrawn --> [*]
 ```
 
-# End of Selection
-
 1. **Create.** The host escrows `amount` of a token (or the native currency). The fee is
    escrowed separately and only earned if the giveaway is finalized. For ERC-20 prizes the
    escrow is the balance actually received, so fee-on-transfer tokens are accounted correctly.
@@ -67,9 +68,35 @@ giveaway and refunds the whole deposit, fee included. Funds are never locked.
 | `VERIFIER_ROLE`      | Settlement signers (KMS keys) | Sign settlements                                      |
 | `OPERATOR_ROLE`      | Game runtime                  | Commit seeds, cancel active giveaways                 |
 | `PAUSER_ROLE`        | On-call key                   | Pause creation, top-ups, seed commits and finalizing  |
+| `RELAYER_ROLE`       | The API's relayer key         | Collect prizes for winners, keeping a capped fee      |
 
 The admin is transferred in two steps with a delay (`AccessControlDefaultAdminRules`), and the
 admin role cannot be granted directly. The deployer receives no role.
+
+## Gas-free actions
+
+Players and hosts never need gas. They sign an EIP-712 action and a relayer submits it, keeping
+a fee in the giveaway's token. The signer agrees to the exact fee in the signature, so a relayer
+can never take more. Each signature carries the signer's next `nonces(account)` and a deadline,
+so it can't be replayed or held back. Contract wallets sign through ERC-1271.
+
+| Function                 | Signed type       | What it does                                                                                                    |
+| ------------------------ | ----------------- | --------------------------------------------------------------------------------------------------------------- |
+| `claimWithSig`           | `ClaimTo`         | Collects a prize to any wallet; the relayer keeps `fee`                                                         |
+| `withdrawWithSig`        | `WithdrawTo`      | Sends a host's refund or leftovers to any wallet, less `fee`                                                    |
+| `setPayoutWalletWithSig` | `SetPayoutWallet` | Sends everything owed to an account to another wallet from now on                                               |
+| `createGiveawayFor`      | `CreateGiveaway`  | Opens a giveaway for a host; the relayer keeps `relayFee` of the deposit, and the usual fee applies to the rest |
+
+`createGiveawayFor` takes ERC-20 prizes only, and an optional EIP-2612 permit so the host needs
+no approval transaction either. A permit that fails (say, someone front-ran it) is ignored, so it
+doesn't block a host whose allowance already exists.
+
+Relayers (`RELAYER_ROLE`) can also collect prizes for winners unprompted with `claimManyFor`, so
+nobody loses a prize to the claim window. The fee there is at most `MAX_RELAY_FEE_BPS` (2%) of
+each prize. Every fee is reported in a `RelayFeePaid` event.
+
+The type strings live in `packages/settlement/src/relay.ts` for TypeScript; the settlement
+parity fixture checks that both sides compute the same digests.
 
 ## Security review
 

@@ -22,6 +22,8 @@ import { PRISMA, type Database } from "../src/infra/prisma.module.js";
 import { REDIS } from "../src/infra/redis.module.js";
 import { LeaderboardsService } from "../src/leaderboards/leaderboards.service.js";
 import { PRICE_SOURCE, type PriceSource } from "../src/prices/price-source.js";
+import { PRIVY_GATEWAY, type PrivyGateway, type PrivyIdentity } from "../src/auth/privy.gateway.js";
+import { AppException } from "../src/common/app.exception.js";
 import { TOKEN_READER, type Erc20Metadata, type TokenReader } from "../src/tokens/token-reader.js";
 
 export const APP_ORIGIN = "http://localhost:3000";
@@ -39,6 +41,8 @@ export interface TestApp {
   erc20s: Map<string, Erc20Metadata>;
   /** How many contract reads the stub served, to check that metadata is cached. */
   tokenReads: { count: number };
+  /** Privy access tokens the stubbed Privy accepts, and who each belongs to. */
+  privyUsers: Map<string, PrivyIdentity>;
   reset(): Promise<void>;
   close(): Promise<void>;
 }
@@ -55,6 +59,19 @@ export async function createTestApp(): Promise<TestApp> {
     read: (chainId, address) => {
       tokenReads.count += 1;
       return Promise.resolve(erc20s.get(`${chainId}:${address.toLowerCase()}`) ?? null);
+    },
+  };
+  // Never the real Privy: tokens map to identities the test sets up.
+  const privyUsers = new Map<string, PrivyIdentity>();
+  const privyGateway: PrivyGateway = {
+    enabled: true,
+    identify: (token) => {
+      const identity = privyUsers.get(token);
+      return identity
+        ? Promise.resolve(identity)
+        : Promise.reject(
+            AppException.unauthenticated("The Privy sign-in is invalid or has expired"),
+          );
     },
   };
   // Never the real market: fixed dollar prices.
@@ -79,6 +96,8 @@ export async function createTestApp(): Promise<TestApp> {
     .useValue(tokenReader)
     .overrideProvider(PRICE_SOURCE)
     .useValue(priceSource)
+    .overrideProvider(PRIVY_GATEWAY)
+    .useValue(privyGateway)
     .compile();
 
   const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
@@ -96,11 +115,13 @@ export async function createTestApp(): Promise<TestApp> {
     contractSignatures,
     erc20s,
     tokenReads,
+    privyUsers,
     async reset() {
       admins.clear();
       contractSignatures.valid = false;
       erc20s.clear();
       tokenReads.count = 0;
+      privyUsers.clear();
       app.get(LeaderboardsService).clear();
       await resetDatabase(db);
       await redis.flushdb();

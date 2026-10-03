@@ -1,6 +1,11 @@
 "use client";
 
-import { gameDefinitionViewSchema, pageSchema, type GameDefinitionView } from "@fairdrops/shared";
+import {
+  findChain,
+  gameDefinitionViewSchema,
+  pageSchema,
+  type GameDefinitionView,
+} from "@fairdrops/shared";
 import { createGiveaway, prepareGiveaway } from "@fairdrops/sdk/host";
 import { formatUnits, parseUnits } from "viem";
 import { useRouter } from "next/navigation";
@@ -46,8 +51,10 @@ import {
   tokenKey,
 } from "@/lib/tokens";
 import {
-  connectInjectedWallet,
+  connectWallet,
   connectedAccount,
+  onEmbeddedWalletChange,
+  usingEmbeddedWallet,
   onWalletChainChange,
   requestAccount,
   walletChainId,
@@ -107,18 +114,22 @@ export function CreateFlow() {
   }, []);
 
   const [rolls, setRolls] = useState("3");
-  const [windowSeconds, setWindowSeconds] = useState("120");
+  const [windowSeconds, setWindowSeconds] = useState("20");
   // Quizzes draw from FairDrops' own 100-question bank unless the host picks another.
   const [bank, setBank] = useState<string>(DEFAULT_QUIZ_BANK_HASH);
   const [banks, setBanks] = useState<QuizBankView[]>([]);
   const [questions, setQuestions] = useState("10");
-  const [secondsPerQuestion, setSecondsPerQuestion] = useState("15");
+  const [secondsPerQuestion, setSecondsPerQuestion] = useState("20");
   const [minScore, setMinScore] = useState("1");
 
   const [pay, setPay] = useState("wallet");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [externalGames, setExternalGames] = useState<GameDefinitionView[]>([]);
+
+  // Re-read when the embedded wallet of a social sign-in becomes available.
+  const [walletVersion, setWalletVersion] = useState(0);
+  useEffect(() => onEmbeddedWalletChange(() => setWalletVersion((n) => n + 1)), []);
 
   useEffect(() => {
     let live = true;
@@ -128,7 +139,7 @@ export function CreateFlow() {
     return () => {
       live = false;
     };
-  }, []);
+  }, [walletVersion]);
 
   useEffect(() => {
     if (!owner) return;
@@ -152,7 +163,7 @@ export function CreateFlow() {
       live = false;
       stop();
     };
-  }, []);
+  }, [walletVersion]);
 
   async function connect() {
     try {
@@ -317,7 +328,7 @@ export function CreateFlow() {
     const mark = (step: keyof LockSteps, status: StepStatus) =>
       setSteps((current) => (current ? { ...current, [step]: status } : current));
     try {
-      const wallet = await connectInjectedWallet(token.chainId);
+      const wallet = await connectWallet(token.chainId);
       setSteps((current) =>
         current && current.network === "signing" ? { ...current, network: "done" } : current,
       );
@@ -406,6 +417,7 @@ export function CreateFlow() {
                   onCheck={(on) => setAckFor(on ? tokenKey(token) : null)}
                 />
               ) : null}
+              {usingEmbeddedWallet() && owner ? <FundingNote owner={owner} token={token} /> : null}
               <div className="flex items-center justify-between gap-4">
                 <span className="label">{create.prize.winners}</span>
                 <Stepper value={winners} onChange={changeWinners} />
@@ -1389,6 +1401,39 @@ function BankPicker({
           hint: create.games.bankHint(bank.questions, Number(questions) || 10, bank.builtin),
         }))}
       />
+    </div>
+  );
+}
+
+/**
+ * Someone who signed in with a social account pays from their FairDrops wallet, which starts
+ * empty. It needs the prize token, plus a little of the network's coin for fees until hosting
+ * is gas-free.
+ */
+function FundingNote({ owner, token }: { owner: Address; token: TokenView }) {
+  const [copied, setCopied] = useState(false);
+  const native = findChain(token.chainId)?.nativeCurrency.symbol ?? "ETH";
+  return (
+    <div className="flex flex-col gap-2 rounded-md bg-surface-sunken p-3">
+      <span className="caption text-ink-muted">
+        Paying from your FairDrops wallet on {chainName(token.chainId)}. Send it the {token.symbol}{" "}
+        for the prize{token.native ? "" : `, plus a little ${native} for network fees`}.
+      </span>
+      <button
+        type="button"
+        onClick={() =>
+          void navigator.clipboard
+            ?.writeText(owner)
+            .then(() => setCopied(true))
+            .catch(() => undefined)
+        }
+        className="flex cursor-pointer items-center justify-between gap-3 rounded-md bg-surface-raised px-3 py-2 text-left hover:bg-surface"
+      >
+        <span className="min-w-0 font-mono text-sm [overflow-wrap:anywhere]">{owner}</span>
+        <span className="caption shrink-0 font-semibold text-lagoon">
+          {copied ? "Copied" : "Copy"}
+        </span>
+      </button>
     </div>
   );
 }

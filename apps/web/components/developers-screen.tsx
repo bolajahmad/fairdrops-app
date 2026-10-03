@@ -20,10 +20,10 @@ import { SignInPanel } from "@/components/sign-in-panel";
 import { StatusChip } from "@/components/status-chip";
 import type { PlayerStatus } from "@/components/types";
 import { useAccount } from "@/lib/account";
+import { AccountChip } from "@/components/account-chip";
 import { copy } from "@/lib/copy";
 import { friendlyError } from "@/lib/errors";
 import { browserFairDrops } from "@/lib/fairdrops";
-import { shortenWallet } from "@/lib/format";
 
 /** Placeholder until the package is published. */
 const NPM_URL = "https://www.npmjs.com/package/@fairdrops/sdk";
@@ -132,12 +132,7 @@ export function DevelopersScreen() {
           </p>
         </div>
         {account.state.status === "signedIn" ? (
-          <div className="flex items-center gap-3">
-            <span className="caption text-ink-muted">{shortenWallet(account.state.me.wallet)}</span>
-            <Button size="sm" variant="ghost" onClick={() => void account.signOut()}>
-              {copy.signIn.signOut}
-            </Button>
-          </div>
+          <AccountChip me={account.state.me} onSignOut={() => void account.signOut()} />
         ) : null}
       </header>
 
@@ -150,6 +145,7 @@ export function DevelopersScreen() {
               busy={account.busy}
               error={account.error}
               onWallet={() => void account.signInWithWallet()}
+              onSocial={(provider) => void account.signInWithSocial(provider)}
             />
           ) : null}
 

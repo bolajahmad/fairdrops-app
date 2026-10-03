@@ -10,6 +10,7 @@ import { Shell, StickyBar } from "@/components/shell";
 import { SignInPanel } from "@/components/sign-in-panel";
 import { StatusChip } from "@/components/status-chip";
 import { useAccount } from "@/lib/account";
+import { AccountChip } from "@/components/account-chip";
 import { copy } from "@/lib/copy";
 import { friendlyError } from "@/lib/errors";
 import { browserFairDrops } from "@/lib/fairdrops";
@@ -18,7 +19,6 @@ import { ValueBreakdown, ValueSummary } from "@/components/value-total";
 import {
   formatTokenAmount,
   formatWhen,
-  shortenWallet,
   giveawayStatus,
   tokenDecimals,
   tokenSymbol,
@@ -84,10 +84,8 @@ export default function HostHomePage() {
           <p className="m-0 text-ink-muted">Lock a prize, share a link, let people play for it.</p>
         </div>
         <div className="hidden items-center gap-4 md:flex">
-          {wallet ? (
-            <Button size="sm" variant="ghost" onClick={() => void account.signOut()}>
-              {copy.signIn.signOut} · {shortenWallet(wallet)}
-            </Button>
+          {account.state.status === "signedIn" ? (
+            <AccountChip me={account.state.me} onSignOut={() => void account.signOut()} />
           ) : null}
           {create}
         </div>
@@ -101,6 +99,7 @@ export default function HostHomePage() {
             busy={account.busy}
             error={account.error}
             onWallet={() => void account.signInWithWallet()}
+            onSocial={(provider) => void account.signInWithSocial(provider)}
           />
         ) : null}
 

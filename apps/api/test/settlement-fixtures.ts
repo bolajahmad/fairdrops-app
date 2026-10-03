@@ -19,7 +19,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import type { Database } from "../src/infra/prisma.module.js";
 import { CHAIN_ID, HOST } from "./session-fixtures.js";
 
-export const CONTRACT = "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca" as Address;
+export const CONTRACT = "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72" as Address;
 export const VERIFIER = privateKeyToAccount(keccak256(toHex("api test verifier")));
 
 let counter = 1_000;
@@ -46,7 +46,7 @@ export async function createSettledGiveaway(db: Database, options: SettledOption
     v: 2,
     title: "Dice night",
     description: "Two rolls each",
-    game: { id: "dice", version: "1.0.0", config: { rolls: 2, windowSeconds: 60 } },
+    game: { id: "dice", version: "1.0.0", config: { rolls: 2, windowSeconds: 30 } },
     rewards: { kind: "weighted", bps: [7000, 3000] },
   });
   const encoded = encodeGiveawayMetadata(metadata);

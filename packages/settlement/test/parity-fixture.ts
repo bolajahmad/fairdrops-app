@@ -13,6 +13,7 @@ import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
 import { keccak256, toHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { PayoutTree, PAYOUT_LEAF_ENCODING } from "../src/tree.js";
+import { relayDigest } from "../src/relay.js";
 import {
   settlementDigest,
   settlementTypedData,
@@ -42,11 +43,23 @@ export interface ParityFixture {
   digest: Hex;
   verifier: Address;
   signature: Hex;
+  /** Sample signed actions and their EIP-712 digests, for the contract's `*_TYPEHASH`es. */
+  relay: {
+    claimTo: Record<string, string> & { digest: Hex };
+    withdrawTo: Record<string, string> & { digest: Hex };
+    setPayoutWallet: Record<string, string> & { digest: Hex };
+    createGiveaway: Record<string, string> & { digest: Hex };
+  };
+}
+
+/** Bigints as decimal strings, as the rest of the fixture stores amounts. */
+function strings(message: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(Object.entries(message).map(([key, value]) => [key, String(value)]));
 }
 
 export async function buildParityFixture(): Promise<ParityFixture> {
   const chainId = 84532;
-  const contract = "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca" as Address;
+  const contract = "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72" as Address;
   const giveawayId = keccak256(toHex("parity giveaway"));
   // Five leaves, so the tree has an unpaired node, and one amount near the top of uint256.
   const payouts = [
@@ -96,6 +109,60 @@ export async function buildParityFixture(): Promise<ParityFixture> {
     digest: settlementDigest(chainId, contract, message),
     verifier: verifier.address.toLowerCase() as Address,
     signature: await verifier.signTypedData(settlementTypedData(chainId, contract, message)),
+    relay: relayFixture(chainId, contract, giveawayId),
+  };
+}
+
+function relayFixture(chainId: number, contract: Address, giveawayId: Hex) {
+  const account = "0x00000000000000000000000000000000000000a1" as Address;
+  const recipient = "0x00000000000000000000000000000000000000d4" as Address;
+  const claimTo = {
+    giveawayId,
+    account,
+    amount: 500_000n,
+    recipient,
+    fee: 1_234n,
+    nonce: 7n,
+    deadline: 1_900_000_000n,
+  };
+  const withdrawTo = {
+    giveawayId,
+    host: account,
+    recipient,
+    fee: 99n,
+    nonce: 3n,
+    deadline: 1_900_000_000n,
+  };
+  const setPayoutWallet = { account, wallet: recipient, nonce: 0n, deadline: 1_900_000_000n };
+  const createGiveaway = {
+    host: account,
+    token: "0x036cbd53842c5426634e7929541ec2318f3dcf7e" as Address,
+    amount: 10_000_000n,
+    startTime: 1_800_000_000n,
+    finalizeDeadline: 1_800_086_400n,
+    maxWinners: 5,
+    metadataHash: keccak256(toHex("parity metadata")),
+    relayFee: 25_000n,
+    nonce: 1n,
+    deadline: 1_900_000_000n,
+  };
+  return {
+    claimTo: {
+      ...strings(claimTo),
+      digest: relayDigest(chainId, contract, "ClaimTo", claimTo),
+    },
+    withdrawTo: {
+      ...strings(withdrawTo),
+      digest: relayDigest(chainId, contract, "WithdrawTo", withdrawTo),
+    },
+    setPayoutWallet: {
+      ...strings(setPayoutWallet),
+      digest: relayDigest(chainId, contract, "SetPayoutWallet", setPayoutWallet),
+    },
+    createGiveaway: {
+      ...strings(createGiveaway),
+      digest: relayDigest(chainId, contract, "CreateGiveaway", createGiveaway),
+    },
   };
 }
 

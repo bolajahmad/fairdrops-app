@@ -27,7 +27,7 @@ import { WorkerModule } from "../src/worker.module.js";
 import { FakeChain } from "./fake-chain.js";
 
 export const CHAIN_ID = 84532;
-export const CONTRACT = "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca" as Address;
+export const CONTRACT = "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72" as Address;
 export const REPORTER = "0x00000000000000000000000000000000000000ee" as Address;
 
 export const COMMIT_TX: Hex = `0x${"7".repeat(64)}`;

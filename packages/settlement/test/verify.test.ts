@@ -23,7 +23,7 @@ import { seedCommitment } from "../src/typed-data.js";
 import { verifySettlement, type VerifySettlementInput } from "../src/verify.js";
 
 const CHAIN_ID = 84532;
-const CONTRACT = "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca" as Address;
+const CONTRACT = "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72" as Address;
 const GIVEAWAY: Hex = `0x${"12".repeat(32)}`;
 const SEED: Hex = `0x${"5e".repeat(32)}`;
 const START = 1_790_000_000_000;
@@ -38,7 +38,7 @@ const metadata: GiveawayMetadata = giveawayMetadataSchema.parse({
   v: 2,
   title: "Dice night",
   description: "",
-  game: { id: "dice", version: "1.0.0", config: { rolls: 2, windowSeconds: 60 } },
+  game: { id: "dice", version: "1.0.0", config: { rolls: 2, windowSeconds: 30 } },
   rewards: { kind: "weighted", bps: [7000, 3000] },
 });
 
@@ -158,7 +158,7 @@ describe("verifySettlement, hosted game", () => {
 
     const changed = giveawayMetadataSchema.parse({
       ...metadata,
-      game: { ...metadata.game, config: { rolls: 3, windowSeconds: 60 } },
+      game: { ...metadata.game, config: { rolls: 3, windowSeconds: 30 } },
     });
     expect(await failed(inputFor(playDice(), { metadata: changed }))).toEqual(["game"]);
   });

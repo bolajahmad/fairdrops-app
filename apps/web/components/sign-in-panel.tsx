@@ -1,24 +1,10 @@
 "use client";
 
-import { Button } from "./button";
 import { ErrorNote } from "./error-note";
 import { Icon } from "./icon";
+import { SignInButtons } from "./social-buttons";
 import { copy } from "@/lib/copy";
-import type { IconName } from "./types";
-
-interface Method {
-  id: string;
-  label: string;
-  icon: IconName;
-  ready: boolean;
-}
-
-/** Google, email and passkeys need a wallet provider (Web3Auth) that is not configured yet. */
-const METHODS: Method[] = [
-  { id: "wallet", label: copy.signIn.wallet, icon: "wallet", ready: true },
-  { id: "google", label: copy.continueGoogle, icon: "users", ready: false },
-  { id: "email", label: copy.continueEmail, icon: "send", ready: false },
-];
+import { socialSignInEnabled, type SocialProvider } from "@/lib/social";
 
 /**
  * The one sign-in block: a title saying why, the available methods, and errors in plain words.
@@ -30,12 +16,14 @@ export function SignInPanel({
   busy,
   error,
   onWallet,
+  onSocial,
 }: {
   title: string;
   reason: string;
   busy: boolean;
   error: string | null;
   onWallet: () => void;
+  onSocial: (provider: SocialProvider) => void;
 }) {
   return (
     <section className="flex w-full max-w-[480px] flex-col gap-5 rounded-xl border border-line bg-surface-raised p-6">
@@ -46,24 +34,9 @@ export function SignInPanel({
         <h2 className="title-m m-0 mt-2">{title}</h2>
         <p className="m-0 text-ink-muted">{reason}</p>
       </div>
-      <div className="flex flex-col gap-3">
-        {METHODS.map((method) => (
-          <Button
-            key={method.id}
-            size="lg"
-            block
-            variant={method.ready ? "primary" : "secondary"}
-            icon={method.icon}
-            loading={method.ready && busy}
-            disabled={!method.ready}
-            onClick={method.ready ? onWallet : undefined}
-          >
-            {method.label}
-          </Button>
-        ))}
-      </div>
+      <SignInButtons busy={busy} onSocial={onSocial} onWallet={onWallet} />
       <p className="caption m-0 text-ink-muted">
-        {copy.signIn.socialLater} {copy.signIn.note}
+        {socialSignInEnabled ? copy.signIn.socialNote : copy.signIn.note}
       </p>
       {error ? <ErrorNote>{error}</ErrorNote> : null}
     </section>

@@ -1,6 +1,6 @@
 {
   "chainId": 84532,
-  "contract": "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca",
+  "contract": "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72",
   "giveawayId": "0x39f64b43b924a3fadf5ca643d05d73630a35cfa03d9671f4e59e1131db6b2974",
   "payouts": [
     {
@@ -59,7 +59,48 @@
     "seed": "0x206b6ad0874aa9eb0dfe174e64cc78ace2299988de4f1eb59187847c20b2fff9",
     "transcriptHash": "0xc8d5d6b7d24d555afc8241dcc5a95cefeeeb86b44fbd7553a1e604e7126ffdf0"
   },
-  "digest": "0xe637ed1e0447c0040a441a334fe0e713e696f86e29a28a18fb8bf46ca18d7f1b",
+  "digest": "0x3601082695fc037b010c5ac97af2d2f59c449a61262fe166fd9e49b0d990d09e",
   "verifier": "0xeb3168e44c8561f0e768132bf6ca268b0b34565d",
-  "signature": "0xf512c9d6a5c4eaa0c0ef988c425cc67ae5303b02eb079f112ad5d1a4907afef413ea349c3a04d7a16a66fdd3aa740b530a6ed51572f9fd9a2d2f99feaff1077b1c"
+  "signature": "0x5941ad3b6263665485d8cd3e6d404b2c5201752740787ce6a5cc79fd0726abff7a469ba01265d12b77b78bef03f735776a10871577227ba0e765d07921a00b751c",
+  "relay": {
+    "claimTo": {
+      "giveawayId": "0x39f64b43b924a3fadf5ca643d05d73630a35cfa03d9671f4e59e1131db6b2974",
+      "account": "0x00000000000000000000000000000000000000a1",
+      "amount": "500000",
+      "recipient": "0x00000000000000000000000000000000000000d4",
+      "fee": "1234",
+      "nonce": "7",
+      "deadline": "1900000000",
+      "digest": "0x33a8cff4c720d6c2387640d2e0540e7eb2599dd15ad39a8453176e90c1370f70"
+    },
+    "withdrawTo": {
+      "giveawayId": "0x39f64b43b924a3fadf5ca643d05d73630a35cfa03d9671f4e59e1131db6b2974",
+      "host": "0x00000000000000000000000000000000000000a1",
+      "recipient": "0x00000000000000000000000000000000000000d4",
+      "fee": "99",
+      "nonce": "3",
+      "deadline": "1900000000",
+      "digest": "0x232fc1d5e997a564aec56883d24438c608cd3f8631ab5ebfa18b9e8e8a9474d2"
+    },
+    "setPayoutWallet": {
+      "account": "0x00000000000000000000000000000000000000a1",
+      "wallet": "0x00000000000000000000000000000000000000d4",
+      "nonce": "0",
+      "deadline": "1900000000",
+      "digest": "0xd5868d01076a6d14c948c19b6133081ddeb6f2b5367f679237437fa697e3281b"
+    },
+    "createGiveaway": {
+      "host": "0x00000000000000000000000000000000000000a1",
+      "token": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+      "amount": "10000000",
+      "startTime": "1800000000",
+      "finalizeDeadline": "1800086400",
+      "maxWinners": "5",
+      "metadataHash": "0x68fe2efed95cde72cdb92d9902b3aa81b6325f0c7f4fdc7562b33927b59bdbb2",
+      "relayFee": "25000",
+      "nonce": "1",
+      "deadline": "1900000000",
+      "digest": "0x2953c30383a69865354323b16cca2bee88cbb386568ab6c0849a7ecdc161a514"
+    }
+  }
 }

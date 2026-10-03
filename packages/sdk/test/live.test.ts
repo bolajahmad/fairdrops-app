@@ -135,7 +135,7 @@ describe("LiveConnection", () => {
     expect(states).toEqual(["reconnecting", "open"]);
     expect(sockets[1]!.url).toContain("ticket=ticket-1");
     expect(sockets[1]!.sent).toEqual([
-      { type: "subscribe", sessionId: SESSION },
+      { type: "subscribe", sessionId: SESSION, claim: true },
       { type: "action", sessionId: SESSION, id, action: { type: "roll" } },
     ]);
     sockets[1]!.push({
@@ -145,6 +145,34 @@ describe("LiveConnection", () => {
       result: { id, seq: 0, accepted: true },
     });
     await expect(result).resolves.toMatchObject({ id });
+  });
+
+  it("stays watch-only after another device takes the game, until it claims it back", async () => {
+    const { fd, sockets, webSocket } = setup();
+    live = await LiveConnection.connect(fd, {
+      webSocket,
+      pingIntervalMs: 60_000,
+      maxBackoffMs: 10,
+    });
+    const room = live.subscribe(SESSION);
+    const displaced: string[] = [];
+    room.on("displaced", ({ sessionId }) => displaced.push(sessionId));
+    sockets[0]!.push({ type: "displaced", sessionId: SESSION });
+    expect(room.displaced).toBe(true);
+    expect(displaced).toEqual([SESSION]);
+
+    // A reconnect resubscribes without pulling the game back from the other device.
+    sockets[0]!.close();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(sockets[1]!.sent).toContainEqual({
+      type: "subscribe",
+      sessionId: SESSION,
+      claim: false,
+    });
+
+    room.claim();
+    expect(room.displaced).toBe(false);
+    expect(sockets[1]!.sent.at(-1)).toEqual({ type: "subscribe", sessionId: SESSION, claim: true });
   });
 
   it("makes one reconnection attempt at a time, however many fail", async () => {

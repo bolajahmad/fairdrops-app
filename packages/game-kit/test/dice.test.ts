@@ -18,8 +18,8 @@ function start(): DiceState {
 
 describe("dice", () => {
   it("applies defaults", () => {
-    expect(config).toEqual({ rolls: 3, dice: 2, sides: 6, windowSeconds: 120 });
-    expect(dice.duration(config)).toBe(120_000);
+    expect(config).toEqual({ rolls: 3, dice: 2, sides: 6, windowSeconds: 20 });
+    expect(dice.duration(config)).toBe(20_000);
   });
 
   it("gives each player the same rolls whatever order everyone rolls in", () => {
@@ -29,9 +29,9 @@ describe("dice", () => {
     dice.apply(a, roll, { player: ALICE, seq: 2, at: START + 3 });
 
     const b = start();
-    dice.apply(b, roll, { player: BOB, seq: 0, at: START + 50_000 });
-    dice.apply(b, roll, { player: ALICE, seq: 1, at: START + 60_000 });
-    dice.apply(b, roll, { player: ALICE, seq: 2, at: START + 70_000 });
+    dice.apply(b, roll, { player: BOB, seq: 0, at: START + 5_000 });
+    dice.apply(b, roll, { player: ALICE, seq: 1, at: START + 6_000 });
+    dice.apply(b, roll, { player: ALICE, seq: 2, at: START + 7_000 });
 
     expect(dice.playerView(a, ALICE, START)).toEqual(dice.playerView(b, ALICE, START));
     expect(dice.playerView(a, BOB, START)).toEqual(dice.playerView(b, BOB, START));
@@ -59,7 +59,7 @@ describe("dice", () => {
       accepted: false,
       reason: "No rolls left",
     });
-    expect(dice.apply(state, roll, { player: BOB, seq: 4, at: START + 120_000 })).toEqual({
+    expect(dice.apply(state, roll, { player: BOB, seq: 4, at: START + 20_000 })).toEqual({
       accepted: false,
       reason: "The game is over",
     });
@@ -83,7 +83,7 @@ describe("dice", () => {
     dice.apply(state, roll, { player: ALICE, seq: 0, at: START + 1 });
     expect(dice.publicView(state, START - 1)).toEqual({ phase: "waiting", startsAt: START });
     const view = dice.publicView(state, START + 10);
-    expect(view).toMatchObject({ phase: "rolling", rolledPlayers: 1, endsAt: START + 120_000 });
+    expect(view).toMatchObject({ phase: "rolling", rolledPlayers: 1, endsAt: START + 20_000 });
     expect(JSON.stringify(view)).not.toContain("rolls");
   });
 });

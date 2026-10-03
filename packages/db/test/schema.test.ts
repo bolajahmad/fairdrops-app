@@ -129,7 +129,7 @@ describe("on-chain invariants", () => {
   const giveaway = {
     chainId: 10143,
     giveawayId: hash("1"),
-    contractAddress: "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca",
+    contractAddress: "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72",
     host: "0x00000000000000000000000000000000000000a1",
     token: "0x0000000000000000000000000000000000000000",
     prize: "990",
@@ -190,7 +190,7 @@ describe("session invariants", () => {
       data: {
         chainId: 84532,
         giveawayId: hash("2"),
-        contractAddress: "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca",
+        contractAddress: "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72",
         host: "0x00000000000000000000000000000000000000a1",
         token: "0x0000000000000000000000000000000000000000",
         prize: "1000",

@@ -27,6 +27,7 @@ function session(accessToken: string, refreshToken = `refresh-${accessToken}`) {
       wallets: [],
       wallet: "0x00000000000000000000000000000000000000a1",
       roles: [],
+      login: { method: "wallet", handle: null },
     },
   });
 }

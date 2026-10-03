@@ -11,8 +11,8 @@ import { z } from "zod";
 
 describe("primitives", () => {
   it("normalizes addresses and hashes to lowercase", () => {
-    expect(addressSchema.parse("0x40E79f68ae9AD9A28942050c5158A26d9c9e60CA")).toBe(
-      "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca",
+    expect(addressSchema.parse("0x5cA0A86a6110917A5bB1170b0A18FD880Aa8dE72")).toBe(
+      "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72",
     );
     expect(bytes32Schema.parse(`0x${"AB".repeat(32)}`)).toBe(`0x${"ab".repeat(32)}`);
     expect(addressSchema.safeParse("0x123").success).toBe(false);

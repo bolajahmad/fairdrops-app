@@ -134,7 +134,14 @@ export const socialLinkViewSchema = z.object({
 });
 export type SocialLinkView = z.infer<typeof socialLinkViewSchema>;
 
-export const walletConnectorSchema = z.enum(["web3auth", "injected", "walletconnect", "other"]);
+export const walletConnectorSchema = z.enum([
+  "web3auth",
+  "injected",
+  "walletconnect",
+  /** A Privy embedded wallet, for someone who signed in with a social account. */
+  "privy",
+  "other",
+]);
 export type WalletConnector = z.infer<typeof walletConnectorSchema>;
 
 export const walletKindSchema = z.enum(["EOA", "CONTRACT"]);

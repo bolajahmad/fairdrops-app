@@ -55,10 +55,10 @@ describe("planning", () => {
       mode: "HOSTED",
       gameId: "quiz",
       failureReason: null,
-      config: { bank: BANK_HASH, questions: 3, secondsPerQuestion: 15, revealSeconds: 3 },
+      config: { bank: BANK_HASH, questions: 3, secondsPerQuestion: 20, revealSeconds: 3 },
       seed: null,
     });
-    expect(session.endsAt.getTime() - session.startsAt.getTime()).toBe(3 * 18_000);
+    expect(session.endsAt.getTime() - session.startsAt.getTime()).toBe(3 * 23_000);
     const seed = h.vault.decrypt(session.seedCiphertext);
     expect(seedCommitment(session.giveawayId as `0x${string}`, seed)).toBe(session.seedCommitment);
     expect(Buffer.from(session.seedCiphertext).toString("hex")).not.toContain(seed.slice(2));
@@ -83,7 +83,7 @@ describe("planning", () => {
     ],
     [{ id: "quiz", config: { bank: BANK_HASH, questions: 6 } }, {}, "HOSTED", "asks 6"],
     [
-      { id: "dice", config: { windowSeconds: 900 } },
+      { id: "dice", config: { windowSeconds: 30 } },
       { deadlineIn: 16 * 60_000 },
       "HOSTED",
       "before the finalize deadline",

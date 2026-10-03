@@ -98,7 +98,7 @@ export const roundsSettingsSchema = z.strictObject({
   /** How long rounds keep starting, from the giveaway's start. A round must end within it. */
   playSeconds: z.number().int().min(60).max(MAX_PLAY_SECONDS),
   /** Break between rounds, when people can join or leave. */
-  cooldownSeconds: z.number().int().min(3).max(120).default(10),
+  cooldownSeconds: z.number().int().min(3).max(30).default(20),
   maxWinsPerPlayer: z.number().int().min(1).max(contractLimits.maxWinners).optional(),
   /** Hosted games played after `game`, in order, before the rotation repeats. */
   next: z.array(gameChoiceSchema).max(4).default([]),

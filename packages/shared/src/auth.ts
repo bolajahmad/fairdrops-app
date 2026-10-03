@@ -51,6 +51,24 @@ export const verifyRequestSchema = signedMessageSchema.extend({
 });
 export type VerifyRequest = z.infer<typeof verifyRequestSchema>;
 
+/**
+ * How someone signed in. Everything except a wallet goes through Privy and comes with an
+ * embedded wallet.
+ */
+export const loginMethodSchema = z.enum(["wallet", "google", "email", "passkey"]);
+export type LoginMethod = z.infer<typeof loginMethodSchema>;
+
+/**
+ * `POST /auth/privy`: trade a Privy access token for a FairDrops session. The API checks the
+ * token with Privy and reads the person's account from Privy itself, never from the request.
+ */
+export const privySignInRequestSchema = z.object({
+  accessToken: z.string().min(1).max(4096),
+  transport: tokenTransportSchema.default("cookie"),
+});
+export type PrivySignInRequest = z.infer<typeof privySignInRequestSchema>;
+export type PrivySignInRequestInput = z.input<typeof privySignInRequestSchema>;
+
 export const refreshRequestSchema = z.object({
   refreshToken: z.string().min(1).max(200).optional(),
   transport: tokenTransportSchema.default("cookie"),
@@ -77,8 +95,11 @@ export type AccessTokenClaims = z.infer<typeof accessTokenClaimsSchema>;
 export const meResponseSchema = z.object({
   profile: profileViewSchema,
   wallets: z.array(walletViewSchema),
+  /** The account's address: prizes, joining and hosting all use it. */
   wallet: addressSchema,
   roles: z.array(roleSchema),
+  /** How this session signed in, and the name the provider shows, for "Signed in as …". */
+  login: z.object({ method: loginMethodSchema, handle: z.string().nullable() }),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;
 

@@ -10,8 +10,16 @@ allowBuilds:
   prisma: true
   unrs-resolver: true
   pnpm: true
+  # Pulled in by Privy's wallet libraries. Native speed-ups with JavaScript fallbacks, and a
+  # post-install the browser bundle doesn't need, so none of them run.
+  "@reown/appkit": false
+  bufferutil: false
+  keccak: false
+  utf-8-validate: false
 
 catalog:
+  "@privy-io/node": 0.35.0
+  "@privy-io/react-auth": 3.47.0
   "@eslint/js": 9.39.5
   "@graphprotocol/graph-cli": 0.98.1
   "@graphprotocol/graph-ts": 0.38.2
@@ -71,3 +79,10 @@ catalog:
 
 minimumReleaseAgeExclude:
   - "@nestjs/cli@12.0.6"
+  - "@privy-io/are-addresses-equal@0.0.14"
+  - "@privy-io/encoding@0.4.0"
+  - "@privy-io/ethereum@0.2.5"
+  - "@privy-io/js-sdk-core@0.78.0"
+  - "@privy-io/react-auth@3.47.0"
+  - "@privy-io/routes@0.4.3"
+  - "@privy-io/std@0.0.2"

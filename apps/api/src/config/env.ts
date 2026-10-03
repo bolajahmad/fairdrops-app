@@ -50,6 +50,13 @@ const envSchema = z
     /** WebSocket connections one API instance accepts. */
     WS_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(1_000_000).default(20_000),
 
+    /**
+     * Privy, for social sign-in with embedded wallets. Set both or neither; without them only
+     * wallet sign-in is offered.
+     */
+    PRIVY_APP_ID: z.string().min(1).optional(),
+    PRIVY_APP_SECRET: z.string().min(1).optional(),
+
     /** CoinGecko-compatible `simple/price` endpoint for approximate USDT values. */
     PRICE_API_URL: z.url().default("https://api.coingecko.com/api/v3/simple/price"),
   })
@@ -59,6 +66,13 @@ const envSchema = z
         code: "custom",
         path: ["AUTH_JWT_PRIVATE_JWK"],
         message: "Required in production, so tokens survive restarts and work across instances",
+      });
+    }
+    if (Boolean(env.PRIVY_APP_ID) !== Boolean(env.PRIVY_APP_SECRET)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [env.PRIVY_APP_ID ? "PRIVY_APP_SECRET" : "PRIVY_APP_ID"],
+        message: "Set both PRIVY_APP_ID and PRIVY_APP_SECRET, or neither",
       });
     }
     if (env.LOCAL_ADMIN_ADDRESSES.length > 0 && env.DEPLOYMENT_ENVIRONMENT !== "local") {

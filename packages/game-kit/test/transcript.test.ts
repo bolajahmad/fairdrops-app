@@ -46,7 +46,7 @@ function playQuiz(): HostedTranscript {
     session: {
       id: "0192b3c4-d5e6-7f80-9a1b-2c3d4e5f6a7b",
       chainId: 84532,
-      contract: "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca",
+      contract: "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72",
       giveawayId: `0x${"12".repeat(32)}`,
     },
     game: { id: quiz.id, version: quiz.version },

@@ -39,6 +39,7 @@ export function LobbyStage({
   backHref,
   sessionId,
   giveaway,
+  note,
 }: {
   title: string;
   seconds: number;
@@ -49,6 +50,8 @@ export function LobbyStage({
   sessionId?: string;
   /** Shows the prize and lets people share the giveaway. */
   giveaway?: { chainId: number; giveawayId: string };
+  /** A line under the countdown, e.g. for someone waiting out a round in progress. */
+  note?: string;
 }) {
   const [players, setPlayers] = useState(initialPlayers);
   const [grew, setGrew] = useState(0);
@@ -130,6 +133,7 @@ export function LobbyStage({
               until {games[0] ? gameTitle(games[0].id) : "the first game"} starts. It starts on its
               own.
             </span>
+            {note ? <span className="body-strong text-lagoon-strong">{note}</span> : null}
           </div>
         </section>
 

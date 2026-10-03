@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import {
@@ -39,7 +40,19 @@ const SUBSCRIPTIONS_PER_SOCKET = 10;
 const SESSION_CACHE_MS = 1_000;
 /** Caps the action stream if no runtime is reading it; the log in Postgres is the record. */
 
+/** A seat lasts this long without a heartbeat, so a crashed device frees it on its own. */
+const SEAT_TTL_MS = 60_000;
+
+/** Renews a seat only while this connection still holds it. */
+const RENEW_SEAT = `if redis.call("GET", KEYS[1]) == ARGV[1] then
+  return redis.call("PEXPIRE", KEYS[1], ARGV[2]) end return 0`;
+/** Frees a seat only if this connection still holds it. */
+const RELEASE_SEAT = `if redis.call("GET", KEYS[1]) == ARGV[1] then
+  return redis.call("DEL", KEYS[1]) end return 0`;
+
 interface Client {
+  /** Identifies the connection in seat records shared by every API instance. */
+  id: string;
   ws: WebSocket;
   auth: AuthContext | null;
   sessions: Set<string>;
@@ -141,6 +154,7 @@ export class SessionGateway implements OnApplicationBootstrap, OnApplicationShut
 
   private connect(ws: WebSocket, auth: AuthContext | null): void {
     const client: Client = {
+      id: randomUUID(),
       ws,
       auth,
       sessions: new Set(),
@@ -179,7 +193,7 @@ export class SessionGateway implements OnApplicationBootstrap, OnApplicationShut
         this.send(client, { type: "pong", t: message.t, serverTime: Date.now() });
         return;
       case "subscribe":
-        await this.subscribe(client, message.sessionId);
+        await this.subscribe(client, message.sessionId, message.claim);
         return;
       case "unsubscribe":
         await this.unsubscribe(client, message.sessionId);
@@ -190,7 +204,7 @@ export class SessionGateway implements OnApplicationBootstrap, OnApplicationShut
     }
   }
 
-  private async subscribe(client: Client, sessionId: string): Promise<void> {
+  private async subscribe(client: Client, sessionId: string, claim: boolean): Promise<void> {
     const info = await this.session(sessionId, true);
     if (!info) {
       this.error(client, "NOT_FOUND", "No such session", sessionId);
@@ -211,10 +225,14 @@ export class SessionGateway implements OnApplicationBootstrap, OnApplicationShut
       if (!room) {
         room = new Set();
         this.rooms.set(sessionId, room);
-        await this.subscriber.subscribe(sessionKeys.events(sessionId));
+        await this.subscriber.subscribe(
+          sessionKeys.events(sessionId),
+          sessionKeys.seats(sessionId),
+        );
       }
       room.add(client);
     }
+    if (claim && client.auth) await this.takeSeat(client, sessionId, client.auth.wallet);
 
     // Subscribed before reading, so no update between the two is missed.
     const [publicView, playerView] = await Promise.all([
@@ -231,14 +249,49 @@ export class SessionGateway implements OnApplicationBootstrap, OnApplicationShut
     });
   }
 
+  /**
+   * Gives this connection the player's seat, replacing whichever device had it, and tells the
+   * gateways so the old device's socket hears it was displaced.
+   */
+  private async takeSeat(client: Client, sessionId: string, wallet: Address): Promise<void> {
+    await this.redis.set(sessionKeys.seat(sessionId, wallet), client.id, "PX", SEAT_TTL_MS);
+    await this.redis.publish(
+      sessionKeys.seats(sessionId),
+      JSON.stringify({ wallet, connection: client.id }),
+    );
+  }
+
+  /** Tells this player's other sockets on the session that they're now watch-only. */
+  private seatTaken(sessionId: string, message: string): void {
+    let taken: { wallet?: unknown; connection?: unknown };
+    try {
+      taken = JSON.parse(message) as typeof taken;
+    } catch {
+      return;
+    }
+    for (const client of this.rooms.get(sessionId) ?? []) {
+      if (client.auth?.wallet === taken.wallet && client.id !== taken.connection) {
+        this.send(client, { type: "displaced", sessionId });
+      }
+    }
+  }
+
   private async unsubscribe(client: Client, sessionId: string): Promise<void> {
     client.sessions.delete(sessionId);
+    if (client.auth) {
+      await this.redis
+        .eval(RELEASE_SEAT, 1, sessionKeys.seat(sessionId, client.auth.wallet), client.id)
+        .catch(() => undefined);
+    }
     const room = this.rooms.get(sessionId);
     if (!room) return;
     room.delete(client);
     if (room.size === 0) {
       this.rooms.delete(sessionId);
-      await this.subscriber.unsubscribe(sessionKeys.events(sessionId));
+      await this.subscriber.unsubscribe(
+        sessionKeys.events(sessionId),
+        sessionKeys.seats(sessionId),
+      );
     }
   }
 
@@ -272,6 +325,20 @@ export class SessionGateway implements OnApplicationBootstrap, OnApplicationShut
       return;
     }
     const wallet = client.auth.wallet;
+    // Nobody seated (an action before any subscribe): this connection takes the seat.
+    const seatKey = sessionKeys.seat(sessionId, wallet);
+    await this.redis.set(seatKey, client.id, "PX", SEAT_TTL_MS, "NX");
+    const seat = await this.redis.get(seatKey);
+    if (seat !== client.id) {
+      this.error(
+        client,
+        "PLAYING_ELSEWHERE",
+        'You\'re playing on another device. Choose "Play here instead" to move the game here.',
+        sessionId,
+        id,
+      );
+      return;
+    }
     if (!(await this.isPlayer(sessionId, wallet, info.game.id === ROUNDS_GAME_ID))) {
       this.error(
         client,
@@ -302,6 +369,11 @@ export class SessionGateway implements OnApplicationBootstrap, OnApplicationShut
 
   /** Forwards a runtime event to the sockets watching that session. */
   private relay(channel: string, message: string): void {
+    const seated = /^fd:session:([^:]+):seats$/.exec(channel)?.[1];
+    if (seated) {
+      this.seatTaken(seated, message);
+      return;
+    }
     const sessionId = /^fd:session:([^:]+):events$/.exec(channel)?.[1];
     if (!sessionId) return;
     let event: SessionEvent;
@@ -411,6 +483,20 @@ export class SessionGateway implements OnApplicationBootstrap, OnApplicationShut
       }
       client.alive = false;
       client.ws.ping();
+      // A live socket keeps its seats; one that stops answering lets them lapse.
+      if (client.auth) {
+        for (const sessionId of client.sessions) {
+          this.redis
+            .eval(
+              RENEW_SEAT,
+              1,
+              sessionKeys.seat(sessionId, client.auth.wallet),
+              client.id,
+              SEAT_TTL_MS,
+            )
+            .catch(() => undefined);
+        }
+      }
     }
   }
 

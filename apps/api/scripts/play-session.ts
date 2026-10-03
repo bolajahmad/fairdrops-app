@@ -48,7 +48,7 @@ import { createSiweMessage } from "viem/siwe";
 import { WebSocket } from "ws";
 
 const CHAIN_ID = 84532;
-const CONTRACT = "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca";
+const CONTRACT = "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72";
 const APP_ORIGIN = "http://localhost:3000";
 
 const { values: args } = parseArgs({

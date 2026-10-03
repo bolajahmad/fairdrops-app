@@ -2,11 +2,11 @@
   "contract": "FairDrops",
   "version": "1",
   "chainId": 10143,
-  "address": "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca",
-  "transactionHash": "0x8f2892e7cf7137aaf0261df7b261b42da1fea1c5829cb6800f44ff31b7cfa20d",
-  "blockNumber": 65564761,
+  "address": "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72",
+  "transactionHash": "0x279657f312daf1f7a130ef56cf84e3d8014bcf8f003df9dedb1f857aa6a574aa",
+  "blockNumber": 67691113,
   "deployer": "0x9281e0888a4b6e7360f739be740c0e696c3ced2c",
   "salt": "0x3a69fe70f1d51d541d91956a9a615f1de8f7b8c5954a1ea27af31ebe708ff3e2",
-  "abiHash": "0x59edeb3111b2195a531884623fdf0da6b92867abf40d2dcfffa9037d6e579a5c",
-  "deployedAt": "2026-09-25T11:50:04.000Z"
+  "abiHash": "0x0d6e3d600378cb495b053e83289d94b1ebc44f5febb9244aedd87654c071f13e",
+  "deployedAt": "2026-10-03T00:53:02.000Z"
 }

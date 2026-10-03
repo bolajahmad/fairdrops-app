@@ -42,12 +42,26 @@ export class ProfilesService {
     return toProfileView(wallet.user);
   }
 
-  async me(userId: string, wallet: Address, roles: Role[]): Promise<MeResponse> {
-    const user = await this.db.user.findUniqueOrThrow({
-      where: { id: userId },
-      include: profileInclude,
-    });
-    return { profile: toProfileView(user), wallets: user.wallets.map(toWalletView), wallet, roles };
+  async me(userId: string, wallet: Address, roles: Role[], sessionId: string): Promise<MeResponse> {
+    const [user, session] = await Promise.all([
+      this.db.user.findUniqueOrThrow({ where: { id: userId }, include: profileInclude }),
+      this.db.authSession.findUnique({ where: { id: sessionId }, select: { method: true } }),
+    ]);
+    const method = session?.method ?? "wallet";
+    const identity =
+      method === "wallet"
+        ? null
+        : await this.db.authIdentity.findFirst({
+            where: { userId, method },
+            select: { handle: true },
+          });
+    return {
+      profile: toProfileView(user),
+      wallets: user.wallets.map(toWalletView),
+      wallet,
+      roles,
+      login: { method, handle: identity?.handle ?? null },
+    };
   }
 
   async update(userId: string, body: UpdateProfileRequest): Promise<ProfileView> {

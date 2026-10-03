@@ -4,10 +4,14 @@ import { findChain } from "@fairdrops/shared";
 import { fairDropsChain } from "@fairdrops/sdk/host";
 import { createWalletClient, custom, numberToHex, type Address, type WalletClient } from "viem";
 
+/**
+ * An EIP-1193 provider: a browser wallet or Privy's embedded one. Method syntax keeps the
+ * listener types loose enough for both.
+ */
 interface EthereumProvider {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-  on?: (event: "chainChanged", listener: (chainId: string) => void) => void;
-  removeListener?: (event: "chainChanged", listener: (chainId: string) => void) => void;
+  request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+  on?(event: "chainChanged", listener: (chainId: string) => void): unknown;
+  removeListener?(event: "chainChanged", listener: (chainId: string) => void): unknown;
 }
 
 /** The wallet would not move to the network an action needs. Carries the network's name. */
@@ -33,6 +37,35 @@ function injected(): EthereumProvider {
   const ethereum = (globalThis as { ethereum?: EthereumProvider }).ethereum;
   if (!ethereum) throw new Error("No wallet found in this browser.");
   return ethereum;
+}
+
+/**
+ * The Privy embedded wallet of someone signed in with a social account, set by the Privy
+ * bridge. While it's set, every action signs with it instead of a browser wallet.
+ */
+let embedded: EthereumProvider | null = null;
+const embeddedListeners = new Set<() => void>();
+
+/** Only `request` is needed from it; its event hooks are optional extras. */
+export function setEmbeddedWallet(provider: Pick<EthereumProvider, "request"> | null): void {
+  if (embedded === provider) return;
+  embedded = provider;
+  embeddedListeners.forEach((listener) => listener());
+}
+
+/** Calls `listener` when the embedded wallet comes or goes (sign-in, sign-out). */
+export function onEmbeddedWalletChange(listener: () => void): () => void {
+  embeddedListeners.add(listener);
+  return () => embeddedListeners.delete(listener);
+}
+
+export function usingEmbeddedWallet(): boolean {
+  return embedded !== null;
+}
+
+/** The wallet actions use: the embedded one when signed in socially, else the browser's. */
+function active(): EthereumProvider | null {
+  return embedded ?? (globalThis as { ethereum?: EthereumProvider }).ethereum ?? null;
 }
 
 /**
@@ -82,7 +115,7 @@ async function switchOrAdd(
 
 /** The network the wallet is on now, or null without a wallet. Never prompts. */
 export async function walletChainId(): Promise<number | null> {
-  const ethereum = (globalThis as { ethereum?: EthereumProvider }).ethereum;
+  const ethereum = active();
   if (!ethereum) return null;
   const id = await ethereum.request({ method: "eth_chainId" }).catch(() => null);
   return id === null ? null : Number(id);
@@ -90,7 +123,7 @@ export async function walletChainId(): Promise<number | null> {
 
 /** Calls `listener` whenever the user (or a switch) moves the wallet to another network. */
 export function onWalletChainChange(listener: (chainId: number) => void): () => void {
-  const ethereum = (globalThis as { ethereum?: EthereumProvider }).ethereum;
+  const ethereum = active();
   if (!ethereum?.on) return () => {};
   const handler = (id: string) => listener(Number(id));
   ethereum.on("chainChanged", handler);
@@ -99,7 +132,7 @@ export function onWalletChainChange(listener: (chainId: number) => void): () => 
 
 /** The wallet's account if the site is already connected, without prompting. */
 export async function connectedAccount(): Promise<Address | null> {
-  const ethereum = (globalThis as { ethereum?: EthereumProvider }).ethereum;
+  const ethereum = active();
   if (!ethereum) return null;
   const accounts = (await ethereum
     .request({ method: "eth_accounts" })
@@ -109,7 +142,9 @@ export async function connectedAccount(): Promise<Address | null> {
 
 /** Asks the wallet for an account (a connect prompt), without switching networks or signing. */
 export async function requestAccount(): Promise<Address> {
-  const accounts = (await injected().request({ method: "eth_requestAccounts" })) as Address[];
+  const accounts = (await (active() ?? injected()).request({
+    method: "eth_requestAccounts",
+  })) as Address[];
   const account = accounts[0];
   if (!account) throw new Error("The wallet did not share an account.");
   return account;
@@ -117,7 +152,7 @@ export async function requestAccount(): Promise<Address> {
 
 /**
  * A wallet client for signing in. Signing a message needs no network, so unlike
- * `connectInjectedWallet` this never asks to switch: an already connected wallet goes straight
+ * `connectWallet` this never asks to switch: an already connected wallet goes straight
  * to the signature prompt. `chainId` only labels the client.
  */
 export async function walletForSignIn(chainId: number): Promise<WalletClient> {
@@ -132,8 +167,12 @@ export async function walletForSignIn(chainId: number): Promise<WalletClient> {
   });
 }
 
-export async function connectInjectedWallet(chainId: number): Promise<WalletClient> {
-  const ethereum = injected();
+/**
+ * A wallet client on `chainId`, ready to send transactions: the embedded wallet for someone
+ * signed in socially (no pop-up), otherwise the browser wallet, switched to the right network.
+ */
+export async function connectWallet(chainId: number): Promise<WalletClient> {
+  const ethereum = active() ?? injected();
   const accounts = (await ethereum.request({ method: "eth_requestAccounts" })) as Address[];
   const account = accounts[0];
   if (!account) throw new Error("The wallet did not share an account.");

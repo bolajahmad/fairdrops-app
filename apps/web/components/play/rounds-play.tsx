@@ -24,6 +24,7 @@ import { browserFairDrops } from "@/lib/fairdrops";
 import { shortenWallet } from "@/lib/format";
 import { gameHowTo, gameTitle, type PlayableGameId } from "@/lib/play-director";
 import { playBlip } from "@/lib/sound";
+import { PlayingElsewhere } from "./displaced";
 import { LobbyStage } from "./lobby";
 import { DiceStage, QuizStage } from "./stages";
 
@@ -46,6 +47,7 @@ export function RoundsPlay({ session }: { session: SessionView }) {
   const [busy, setBusy] = useState(false);
   const [rolling, setRolling] = useState(false);
   const [shownFaces, setShownFaces] = useState<number[]>([1, 1]);
+  const [elsewhere, setElsewhere] = useState(false);
 
   useEffect(() => {
     let cancel = false;
@@ -64,6 +66,7 @@ export function RoundsPlay({ session }: { session: SessionView }) {
           setMe(snapshot.playerView);
         });
         next.on("public", (view) => setBoard(view));
+        next.on("displaced", () => setElsewhere(true));
         next.on("player", ({ view }) => setMe(view));
         next.on("status", ({ status: changed }) => setStatus(changed));
         const tick = () => setNow(live?.now() ?? Date.now());
@@ -97,13 +100,25 @@ export function RoundsPlay({ session }: { session: SessionView }) {
     .filter(playable)
     .map((id) => ({ id }));
   const giveawayHref = `/g/${session.chainId}/${session.giveawayId}`;
-  const toast = error ? (
-    <div className="pointer-events-none fixed inset-x-0 bottom-28 z-30 flex justify-center px-4">
-      <div className="pointer-events-auto w-full max-w-[440px] shadow-[var(--lift)]">
-        <ErrorNote>{error}</ErrorNote>
-      </div>
-    </div>
-  ) : null;
+  const toast = (
+    <>
+      {error ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-28 z-30 flex justify-center px-4">
+          <div className="pointer-events-auto w-full max-w-[440px] shadow-[var(--lift)]">
+            <ErrorNote>{error}</ErrorNote>
+          </div>
+        </div>
+      ) : null}
+      {elsewhere ? (
+        <PlayingElsewhere
+          onPlayHere={() => {
+            room?.claim();
+            setElsewhere(false);
+          }}
+        />
+      ) : null}
+    </>
+  );
 
   async function join() {
     setBusy(true);
@@ -233,6 +248,26 @@ export function RoundsPlay({ session }: { session: SessionView }) {
   }
 
   // A break, the end, or a round this person isn't in.
+  // Joined while a round is on: wait in the lobby, counting down to the round they're in.
+  if (board.phase === "playing" && me?.joined && !me.playing && board.next) {
+    const nextId = board.next.game.id;
+    return (
+      <>
+        <LobbyStage
+          title="Next round"
+          seconds={secondsTo(board.next.startsAt)}
+          games={playable(nextId) ? [{ id: nextId }] : lineup}
+          players={session.playerCount}
+          backHref={giveawayHref}
+          sessionId={session.id}
+          giveaway={{ chainId: session.chainId, giveawayId: session.giveawayId }}
+          note="A round is on. You're in from the next one."
+        />
+        {toast}
+      </>
+    );
+  }
+
   const previous = board.phase === "playing" ? board.round : board.round - 1;
   const justWon = board.awards.filter((award) => award.round === previous);
   const over = board.phase === "over";

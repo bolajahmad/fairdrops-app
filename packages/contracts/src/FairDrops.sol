@@ -4,10 +4,13 @@ pragma solidity 0.8.28;
 import {AccessControlDefaultAdminRules} from
     "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IFairDrops} from "./interfaces/IFairDrops.sol";
@@ -19,12 +22,18 @@ import {IFairDrops} from "./interfaces/IFairDrops.sol";
 /// payouts, the revealed seed and a transcript hash. Winners, or anyone on their behalf, claim
 /// against the root. Every outflow is pull-based, and exits (claim, cancel, withdraw) keep working
 /// while the contract is paused.
+///
+/// Players and hosts never need gas: they sign an action (collect a prize to a wallet, withdraw,
+/// set a payout wallet, open a giveaway) and a relayer submits it, keeping a fee in the giveaway's
+/// token that the signer agreed to. Relayers may also collect prizes for winners unprompted,
+/// keeping a fee capped by `MAX_RELAY_FEE_BPS`.
 contract FairDrops is
     IFairDrops,
     AccessControlDefaultAdminRules,
     Pausable,
     ReentrancyGuard,
-    EIP712
+    EIP712,
+    Nonces
 {
     using SafeERC20 for IERC20;
 
@@ -33,12 +42,27 @@ contract FairDrops is
     bytes32 public constant VERIFIER_ROLE = keccak256("VERIFIER_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant RELAYER_ROLE = keccak256("RELAYER_ROLE");
 
     bytes32 public constant SETTLEMENT_TYPEHASH = keccak256(
         "Settlement(bytes32 giveawayId,bytes32 payoutRoot,uint256 totalPayout,uint32 winnerCount,bytes32 seed,bytes32 transcriptHash)"
     );
 
+    bytes32 public constant CLAIM_TO_TYPEHASH = keccak256(
+        "ClaimTo(bytes32 giveawayId,address account,uint256 amount,address recipient,uint256 fee,uint256 nonce,uint256 deadline)"
+    );
+    bytes32 public constant WITHDRAW_TO_TYPEHASH = keccak256(
+        "WithdrawTo(bytes32 giveawayId,address host,address recipient,uint256 fee,uint256 nonce,uint256 deadline)"
+    );
+    bytes32 public constant PAYOUT_WALLET_TYPEHASH =
+        keccak256("SetPayoutWallet(address account,address wallet,uint256 nonce,uint256 deadline)");
+    bytes32 public constant CREATE_GIVEAWAY_TYPEHASH = keccak256(
+        "CreateGiveaway(address host,address token,uint256 amount,uint64 startTime,uint64 finalizeDeadline,uint32 maxWinners,bytes32 metadataHash,uint256 relayFee,uint256 nonce,uint256 deadline)"
+    );
+
     address public constant NATIVE_TOKEN = address(0);
+    /// @notice Most a relayer may keep when collecting a prize for a winner unprompted.
+    uint16 public constant MAX_RELAY_FEE_BPS = 200;
     uint16 public constant MAX_FEE_BPS = 500;
     uint32 public constant MAX_WINNERS = 100_000;
     uint256 public constant MAX_METADATA_BYTES = 4096;
@@ -78,6 +102,7 @@ contract FairDrops is
         _grantAll(VERIFIER_ROLE, p.verifiers);
         _grantAll(OPERATOR_ROLE, p.operators);
         _grantAll(PAUSER_ROLE, p.pausers);
+        _grantAll(RELAYER_ROLE, p.relayers);
     }
 
     // Hosts
@@ -93,32 +118,40 @@ contract FairDrops is
         nonReentrant
         returns (bytes32 id)
     {
-        _validateSchedule(p.startTime, p.finalizeDeadline);
-        if (p.maxWinners == 0 || p.maxWinners > MAX_WINNERS) revert InvalidWinnerCount();
-        if (p.metadata.length > MAX_METADATA_BYTES) revert MetadataTooLarge();
+        _validateCreate(p);
+        id = _open(msg.sender, p, _pullDeposit(p.token, msg.sender, p.amount));
+    }
 
-        uint256 received = _pullDeposit(p.token, p.amount);
-        uint16 bps = feeBps;
-        uint256 fee = _feeOf(received, bps);
+    /// @notice Opens a giveaway for `host`, who signed its terms and pays no gas. The relayer
+    /// keeps `relayFee` out of the deposit; the giveaway's own fee applies to the rest. ERC-20
+    /// prizes only: a native prize has to come from the host's own transaction.
+    /// @param permit Optional EIP-2612 permit for the deposit, so the host needs no approval
+    /// transaction either. Skipped when its deadline is zero, and ignored if it fails, so a
+    /// permit someone front-ran doesn't block a giveaway whose allowance already exists.
+    function createGiveawayFor(
+        CreateParams calldata p,
+        address host,
+        uint256 relayFee,
+        Authorization calldata auth,
+        Permit calldata permit
+    ) external whenNotPaused nonReentrant returns (bytes32 id) {
+        if (p.token == NATIVE_TOKEN) revert InvalidToken();
+        _validateCreate(p);
+        _authorize(host, _createHash(p, host, relayFee, auth), auth);
 
-        id = keccak256(abi.encode(block.chainid, address(this), ++giveawayCount));
+        if (permit.deadline != 0) {
+            try IERC20Permit(p.token).permit(
+                host, address(this), permit.value, permit.deadline, permit.v, permit.r, permit.s
+            ) {} catch {}
+        }
 
-        Giveaway storage g = _giveaways[id];
-        g.host = msg.sender;
-        g.startTime = p.startTime;
-        g.maxWinners = p.maxWinners;
-        g.token = p.token;
-        g.finalizeDeadline = p.finalizeDeadline;
-        g.feeBps = bps;
-        g.status = Status.Active;
-        g.claimWindow = claimWindow;
-        g.prize = received - fee;
-        g.fee = fee;
-        g.metadataHash = keccak256(p.metadata);
-
-        liabilities[p.token] += received;
-
-        _emitCreated(id, g, p.metadata);
+        uint256 received = _pullDeposit(p.token, host, p.amount);
+        if (relayFee >= received) revert FeeTooHigh();
+        id = _open(host, p, received - relayFee);
+        if (relayFee > 0) {
+            IERC20(p.token).safeTransfer(msg.sender, relayFee);
+            emit RelayFeePaid(id, host, msg.sender, relayFee);
+        }
     }
 
     /// @notice Tops up the prize of an open giveaway before it starts.
@@ -128,7 +161,7 @@ contract FairDrops is
         if (msg.sender != g.host) revert NotHost();
         if (block.timestamp >= g.startTime) revert TooLate();
 
-        uint256 received = _pullDeposit(g.token, amount);
+        uint256 received = _pullDeposit(g.token, msg.sender, amount);
         uint256 fee = _feeOf(received, g.feeBps);
         g.prize += received - fee;
         g.fee += fee;
@@ -153,7 +186,7 @@ contract FairDrops is
         g.status = Status.Cancelled;
         emit GiveawayCancelled(id, msg.sender);
 
-        if (isHost) _withdrawToHost(id, g);
+        if (isHost) _withdrawToHost(id, g, _recipientOf(g.host), 0);
     }
 
     /// @notice Sends the host everything currently owed to them: the full deposit of a cancelled
@@ -163,13 +196,33 @@ contract FairDrops is
     function withdraw(bytes32 id) external nonReentrant {
         Giveaway storage g = _giveaways[id];
         if (msg.sender != g.host) revert NotHost();
+        _expireIfLate(id, g);
+        _withdrawToHost(id, g, _recipientOf(g.host), 0);
+    }
 
-        if (g.status == Status.Active && block.timestamp > g.finalizeDeadline) {
-            g.status = Status.Expired;
-            emit GiveawayExpired(id);
-        }
-
-        _withdrawToHost(id, g);
+    /// @notice `withdraw` for a host who signed it and pays no gas: everything owed goes to
+    /// `recipient`, less `fee` for the relayer.
+    function withdrawWithSig(
+        bytes32 id,
+        address recipient,
+        uint256 fee,
+        Authorization calldata auth
+    ) external nonReentrant {
+        Giveaway storage g = _giveaways[id];
+        address hostAccount = g.host;
+        if (hostAccount == address(0)) revert InvalidStatus(g.status);
+        _requireRecipient(recipient);
+        _authorize(
+            hostAccount,
+            keccak256(
+                abi.encode(
+                    WITHDRAW_TO_TYPEHASH, id, hostAccount, recipient, fee, auth.nonce, auth.deadline
+                )
+            ),
+            auth
+        );
+        _expireIfLate(id, g);
+        _withdrawToHost(id, g, recipient, fee);
     }
 
     // Operators and verifiers
@@ -235,21 +288,77 @@ contract FairDrops is
         external
         nonReentrant
     {
-        _claim(id, account, amount, proof);
+        _claim(id, account, amount, proof, _recipientOf(account), 0);
     }
 
     function claimMany(ClaimRequest[] calldata requests) external nonReentrant {
         for (uint256 i = 0; i < requests.length; ++i) {
             ClaimRequest calldata r = requests[i];
-            _claim(r.id, r.account, r.amount, r.proof);
+            _claim(r.id, r.account, r.amount, r.proof, _recipientOf(r.account), 0);
         }
+    }
+
+    /// @notice Collects prizes for winners unprompted, so nobody loses a prize to the claim
+    /// window. The relayer keeps `fees[i]` for the gas, at most `MAX_RELAY_FEE_BPS` of the prize;
+    /// the rest goes to the winner (or their payout wallet).
+    function claimManyFor(ClaimRequest[] calldata requests, uint256[] calldata fees)
+        external
+        nonReentrant
+        onlyRole(RELAYER_ROLE)
+    {
+        if (fees.length != requests.length) revert LengthMismatch();
+        for (uint256 i = 0; i < requests.length; ++i) {
+            ClaimRequest calldata r = requests[i];
+            if (fees[i] > _feeOf(r.amount, MAX_RELAY_FEE_BPS)) revert FeeTooHigh();
+            _claim(r.id, r.account, r.amount, r.proof, _recipientOf(r.account), fees[i]);
+        }
+    }
+
+    /// @notice Collects a prize to `recipient`, for a winner who signed it and pays no gas. The
+    /// relayer keeps `fee`, which the winner agreed to in the signature.
+    function claimWithSig(
+        ClaimRequest calldata r,
+        address recipient,
+        uint256 fee,
+        Authorization calldata auth
+    ) external nonReentrant {
+        _requireRecipient(recipient);
+        _authorize(
+            r.account,
+            keccak256(
+                abi.encode(
+                    CLAIM_TO_TYPEHASH,
+                    r.id,
+                    r.account,
+                    r.amount,
+                    recipient,
+                    fee,
+                    auth.nonce,
+                    auth.deadline
+                )
+            ),
+            auth
+        );
+        _claim(r.id, r.account, r.amount, r.proof, recipient, fee);
     }
 
     /// @notice Redirects funds owed to the caller to another address. Pass zero to clear.
     function setPayoutWallet(address wallet) external {
-        if (wallet == address(this)) revert InvalidPayoutWallet();
-        payoutWallet[msg.sender] = wallet;
-        emit PayoutWalletSet(msg.sender, wallet);
+        _setPayoutWallet(msg.sender, wallet);
+    }
+
+    /// @notice `setPayoutWallet` for an account that signed it and pays no gas.
+    function setPayoutWalletWithSig(address account, address wallet, Authorization calldata auth)
+        external
+    {
+        _authorize(
+            account,
+            keccak256(
+                abi.encode(PAYOUT_WALLET_TYPEHASH, account, wallet, auth.nonce, auth.deadline)
+            ),
+            auth
+        );
+        _setPayoutWallet(account, wallet);
     }
 
     // Fees and treasury
@@ -349,9 +458,15 @@ contract FairDrops is
 
     // Internal
 
-    function _claim(bytes32 id, address account, uint256 amount, bytes32[] calldata proof)
-        private
-    {
+    /// @dev Pays `amount` less `fee` to `recipient` and `fee` to the caller (the relayer).
+    function _claim(
+        bytes32 id,
+        address account,
+        uint256 amount,
+        bytes32[] calldata proof,
+        address recipient,
+        uint256 fee
+    ) private {
         Giveaway storage g = _giveaways[id];
         _requireStatus(g, Status.Finalized);
         if (block.timestamp > g.claimDeadline) revert ClaimWindowClosed();
@@ -365,22 +480,122 @@ contract FairDrops is
         // Caps a malformed payout tree at the signed total so it cannot touch other escrows.
         if (claimed > g.totalPayout) revert PayoutExceedsPrize();
 
+        if (fee >= amount) revert FeeTooHigh();
+
         isClaimed[id][account] = true;
         g.claimed = claimed;
 
-        address recipient = _recipientOf(account);
-        _payOut(g.token, recipient, amount);
+        _payOutWithFee(g.token, recipient, amount, fee);
         emit Claimed(id, account, recipient, amount);
+        if (fee > 0) emit RelayFeePaid(id, account, msg.sender, fee);
     }
 
-    function _withdrawToHost(bytes32 id, Giveaway storage g) private {
+    function _withdrawToHost(bytes32 id, Giveaway storage g, address recipient, uint256 fee)
+        private
+    {
         uint256 amount = _hostEntitlement(g, g.status) - g.withdrawn;
         if (amount == 0) revert NothingToWithdraw();
+        if (fee >= amount) revert FeeTooHigh();
 
         g.withdrawn += amount;
-        address recipient = _recipientOf(g.host);
-        _payOut(g.token, recipient, amount);
+        _payOutWithFee(g.token, recipient, amount, fee);
         emit HostWithdrawal(id, g.host, recipient, amount);
+        if (fee > 0) emit RelayFeePaid(id, g.host, msg.sender, fee);
+    }
+
+    function _expireIfLate(bytes32 id, Giveaway storage g) private {
+        if (g.status == Status.Active && block.timestamp > g.finalizeDeadline) {
+            g.status = Status.Expired;
+            emit GiveawayExpired(id);
+        }
+    }
+
+    function _validateCreate(CreateParams calldata p) private view {
+        _validateSchedule(p.startTime, p.finalizeDeadline);
+        if (p.maxWinners == 0 || p.maxWinners > MAX_WINNERS) revert InvalidWinnerCount();
+        if (p.metadata.length > MAX_METADATA_BYTES) revert MetadataTooLarge();
+    }
+
+    /// @dev Records a giveaway whose `deposit` (fee included) is already in the contract.
+    function _open(address hostAccount, CreateParams calldata p, uint256 deposit)
+        private
+        returns (bytes32 id)
+    {
+        uint16 bps = feeBps;
+        uint256 fee = _feeOf(deposit, bps);
+
+        id = keccak256(abi.encode(block.chainid, address(this), ++giveawayCount));
+
+        Giveaway storage g = _giveaways[id];
+        g.host = hostAccount;
+        g.startTime = p.startTime;
+        g.maxWinners = p.maxWinners;
+        g.token = p.token;
+        g.finalizeDeadline = p.finalizeDeadline;
+        g.feeBps = bps;
+        g.status = Status.Active;
+        g.claimWindow = claimWindow;
+        g.prize = deposit - fee;
+        g.fee = fee;
+        g.metadataHash = keccak256(p.metadata);
+
+        liabilities[p.token] += deposit;
+
+        _emitCreated(id, g, p.metadata);
+    }
+
+    function _createHash(
+        CreateParams calldata p,
+        address hostAccount,
+        uint256 relayFee,
+        Authorization calldata auth
+    ) private pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                CREATE_GIVEAWAY_TYPEHASH,
+                hostAccount,
+                p.token,
+                p.amount,
+                p.startTime,
+                p.finalizeDeadline,
+                p.maxWinners,
+                keccak256(p.metadata),
+                relayFee,
+                auth.nonce,
+                auth.deadline
+            )
+        );
+    }
+
+    /// @dev Checks a signed authorization and uses up its nonce, so it can't be replayed.
+    function _authorize(address account, bytes32 structHash, Authorization calldata auth) private {
+        if (block.timestamp > auth.deadline) revert SignatureExpired();
+        if (
+            !SignatureChecker.isValidSignatureNow(
+                account, _hashTypedDataV4(structHash), auth.signature
+            )
+        ) revert InvalidSignature();
+        _useCheckedNonce(account, auth.nonce);
+    }
+
+    function _setPayoutWallet(address account, address wallet) private {
+        if (wallet == address(this)) revert InvalidPayoutWallet();
+        payoutWallet[account] = wallet;
+        emit PayoutWalletSet(account, wallet);
+    }
+
+    function _requireRecipient(address recipient) private view {
+        if (recipient == address(0) || recipient == address(this)) revert InvalidPayoutWallet();
+    }
+
+    /// @dev Pays out `amount` owed: `fee` to the relayer submitting the action, the rest to
+    /// `recipient`.
+    function _payOutWithFee(address token, address recipient, uint256 amount, uint256 fee)
+        private
+    {
+        liabilities[token] -= amount;
+        _send(token, recipient, amount - fee);
+        if (fee > 0) _send(token, msg.sender, fee);
     }
 
     /// @dev Total the host is entitled to over the giveaway's lifetime. Monotonic in time, so
@@ -426,7 +641,12 @@ contract FairDrops is
         );
     }
 
-    function _pullDeposit(address token, uint256 amount) private returns (uint256 received) {
+    /// @dev Native deposits come with the call; ERC-20 deposits are pulled from `from`, which
+    /// is the caller or a host who signed for a relayer.
+    function _pullDeposit(address token, address from, uint256 amount)
+        private
+        returns (uint256 received)
+    {
         if (amount == 0) revert InvalidAmount();
 
         if (token == NATIVE_TOKEN) {
@@ -438,7 +658,7 @@ contract FairDrops is
         if (token.code.length == 0) revert InvalidToken();
 
         uint256 balanceBefore = IERC20(token).balanceOf(address(this));
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        IERC20(token).safeTransferFrom(from, address(this), amount);
         received = IERC20(token).balanceOf(address(this)) - balanceBefore;
         if (received == 0) revert InvalidAmount();
     }

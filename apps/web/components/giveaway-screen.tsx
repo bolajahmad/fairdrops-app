@@ -4,7 +4,7 @@ import type { GiveawayView } from "@fairdrops/shared";
 import { rewardPlaces } from "@fairdrops/shared";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppBar } from "@/components/app-bar";
 import { Button } from "@/components/button";
 import { Countdown } from "@/components/countdown";
@@ -32,6 +32,8 @@ import { gameHowTo, gameTitle, parseLineup } from "@/lib/play-director";
 import { useServerClock } from "@/lib/clock";
 import { playTimeLabel } from "@/lib/presets";
 import { useAccount } from "@/lib/account";
+import { SignInButtons } from "@/components/social-buttons";
+import { rememberJoinIntent, socialSignInEnabled, takeJoinIntent } from "@/lib/social";
 import { useHydrated } from "@/lib/hydrated";
 import { When } from "@/components/when";
 
@@ -56,6 +58,12 @@ export function GiveawayScreen({
   const sessionId = giveaway.session?.id ?? null;
   const signedIn = account.state.status === "signedIn";
   const connected = account.state.status === "signedOut" ? account.state.wallet : null;
+
+  // Back from a social sign-in that started at Join: finish joining.
+  useEffect(() => {
+    if (!signedIn || !sessionId || takeJoinIntent() !== sessionId) return;
+    void Promise.resolve().then(() => enterRef.current());
+  }, [signedIn, sessionId]);
 
   useEffect(() => {
     if (!signedIn || !sessionId) return;
@@ -96,6 +104,11 @@ export function GiveawayScreen({
    * Signs in only if needed (one signature, no network switch), joins (joining twice is fine) and
    * opens the lobby. Someone who already joined goes straight there.
    */
+  const enterRef = useRef(enter);
+  useEffect(() => {
+    enterRef.current = enter;
+  });
+
   async function enter() {
     if (!sessionId) return;
     if (joined) {
@@ -322,26 +335,20 @@ export function GiveawayScreen({
       ) : null}
       <Sheet open={open} onOpenChange={setOpen} title={`Join ${title}`}>
         <p className="m-0 text-ink-muted">{copy.signInReason}</p>
-        <Button
-          size="lg"
-          block
-          icon="wallet"
-          loading={busy}
-          onClick={() => {
-            void enter();
+        <SignInButtons
+          busy={busy || account.busy}
+          walletLabel={connected ? copy.signIn.continueAs(shortenWallet(connected)) : undefined}
+          onWallet={() => void enter()}
+          onSocial={(provider) => {
+            // The provider's sign-in leaves this page; the join finishes when it's back.
+            if (sessionId) rememberJoinIntent(sessionId);
+            void account.signInWithSocial(provider);
           }}
-        >
-          {connected ? copy.signIn.continueAs(shortenWallet(connected)) : copy.signIn.wallet}
-        </Button>
-        <Button size="lg" block variant="secondary" icon="users" disabled>
-          {copy.continueGoogle}
-        </Button>
-        <Button size="lg" block variant="secondary" icon="send" disabled>
-          {copy.continueEmail}
-        </Button>
+        />
         <p className="caption text-center text-ink-muted">
-          {copy.signIn.socialLater} {copy.signIn.note}
+          {socialSignInEnabled ? copy.signIn.socialNote : copy.signIn.note}
         </p>
+        {account.error ? <ErrorNote>{account.error}</ErrorNote> : null}
         {notice ? <ErrorNote>{notice}</ErrorNote> : null}
       </Sheet>
     </div>

@@ -11,7 +11,8 @@ export const diceConfigSchema = z.strictObject({
   dice: z.number().int().min(1).max(5).default(2),
   sides: z.number().int().min(4).max(20).default(6),
   /** How long players have to use their rolls. */
-  windowSeconds: z.number().int().min(30).max(900).default(120),
+  /** How long players have to use their rolls: short, so a round stays snappy. */
+  windowSeconds: z.number().int().min(10).max(30).default(20),
 });
 export type DiceConfig = z.infer<typeof diceConfigSchema>;
 

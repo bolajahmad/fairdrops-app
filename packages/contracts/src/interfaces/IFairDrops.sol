@@ -64,6 +64,25 @@ interface IFairDrops {
         bytes32[] proof;
     }
 
+    /// @notice A signed go-ahead from an account for one relayed action. `nonce` must be the
+    /// account's next nonce and the action must land by `deadline` (unix seconds). The signature is
+    /// EIP-712 over the action's typed data, from the account itself (or ERC-1271 for contracts).
+    struct Authorization {
+        uint256 nonce;
+        uint256 deadline;
+        bytes signature;
+    }
+
+    /// @notice An EIP-2612 permit letting the contract pull the host's tokens without a separate
+    /// approval transaction. A zero `deadline` means no permit: the allowance must already exist.
+    struct Permit {
+        uint256 value;
+        uint256 deadline;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
     struct InitParams {
         address admin;
         uint48 adminTransferDelay;
@@ -74,6 +93,8 @@ interface IFairDrops {
         address[] verifiers;
         address[] operators;
         address[] pausers;
+        /// Accounts that may collect prizes for winners and keep a capped fee for the gas.
+        address[] relayers;
     }
 
     event GiveawayCreated(
@@ -111,6 +132,11 @@ interface IFairDrops {
         bytes32 indexed id, address indexed host, address indexed recipient, uint256 amount
     );
     event PayoutWalletSet(address indexed account, address indexed wallet);
+    /// @notice A relayer paid the gas for `account`'s action and kept `fee`, in the giveaway's
+    /// token, out of what `account` was owed or deposited.
+    event RelayFeePaid(
+        bytes32 indexed id, address indexed account, address indexed relayer, uint256 fee
+    );
     event FeesWithdrawn(address indexed token, address indexed recipient, uint256 amount);
     event Swept(address indexed token, address indexed to, uint256 amount);
     event FeeBpsUpdated(uint16 feeBps);
@@ -148,4 +174,7 @@ interface IFairDrops {
     error InvalidClaimWindow();
     error InvalidThreshold();
     error InvalidPayoutWallet();
+    error SignatureExpired();
+    error InvalidSignature();
+    error LengthMismatch();
 }

@@ -30,7 +30,7 @@ export async function createSession(db: Database, options: SessionOptions = {}) 
     data: {
       chainId: CHAIN_ID,
       giveawayId,
-      contractAddress: "0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca",
+      contractAddress: "0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72",
       host: HOST,
       token: "0x0000000000000000000000000000000000000000",
       prize: "1000",
@@ -58,7 +58,7 @@ export async function createSession(db: Database, options: SessionOptions = {}) 
       mode: options.mode ?? "HOSTED",
       status,
       failureReason: status === "FAILED" || status === "CANCELLED" ? "test" : null,
-      config: { rolls: 3, dice: 2, sides: 6, windowSeconds: 120 },
+      config: { rolls: 3, dice: 2, sides: 6, windowSeconds: 30 },
       seedCiphertext: new Uint8Array(60),
       seedCommitment: `0x${"c".repeat(64)}`,
       seed: ended ? `0x${"d".repeat(64)}` : null,

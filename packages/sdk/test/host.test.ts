@@ -23,7 +23,7 @@ const input: CreateGiveawayInput = {
     v: 2,
     title: "Dice night",
     description: "Highest total wins",
-    game: { id: "dice", version: "1.0.0", config: { windowSeconds: 60 } },
+    game: { id: "dice", version: "1.0.0", config: { windowSeconds: 30 } },
     rewards: { kind: "weighted", bps: [6000, 3000, 1000] },
   },
 };
@@ -31,7 +31,7 @@ const input: CreateGiveawayInput = {
 describe("prepareGiveaway", () => {
   it("builds the createGiveaway arguments for the chain's deployment", () => {
     const prepared = prepareGiveaway(input, now);
-    expect(prepared.contract).toBe("0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca");
+    expect(prepared.contract).toBe("0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72");
     expect(prepared.value).toBe(input.amount);
     expect(prepared.params.startTime).toBe(BigInt(Math.floor(minutes(10).getTime() / 1000)));
     const decoded = decodeGiveawayMetadata(prepared.params.metadata);

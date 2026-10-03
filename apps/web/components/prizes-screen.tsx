@@ -17,6 +17,7 @@ import { StatusChip } from "@/components/status-chip";
 import { ValueBreakdown, ValueSummary } from "@/components/value-total";
 import { formatReference, totalsByToken, usePrices } from "@/lib/prices";
 import { useAccount } from "@/lib/account";
+import { AccountChip } from "@/components/account-chip";
 import { copy } from "@/lib/copy";
 import { friendlyError } from "@/lib/errors";
 import { browserFairDrops } from "@/lib/fairdrops";
@@ -27,7 +28,7 @@ import {
   tokenDecimals,
   tokenSymbol,
 } from "@/lib/format";
-import { connectInjectedWallet } from "@/lib/wallet";
+import { connectWallet } from "@/lib/wallet";
 
 type Filter = "all" | "collect" | "collected";
 
@@ -79,7 +80,7 @@ export function PrizesScreen() {
     setCollecting(keyOf(claim));
     setError(null);
     try {
-      const wallet = await connectInjectedWallet(claim.chainId);
+      const wallet = await connectWallet(claim.chainId);
       await claimPrize(wallet, claim);
       await load();
     } catch (caught) {
@@ -120,14 +121,7 @@ export function PrizesScreen() {
           </p>
         </div>
         {account.state.status === "signedIn" ? (
-          <div className="flex items-center gap-3">
-            <span className="rounded-full bg-surface-sunken px-3 py-1 font-mono text-xs">
-              {shortenWallet(account.state.me.wallet)}
-            </span>
-            <Button size="sm" variant="ghost" onClick={() => void account.signOut()}>
-              {copy.signIn.signOut}
-            </Button>
-          </div>
+          <AccountChip me={account.state.me} onSignOut={() => void account.signOut()} />
         ) : null}
       </header>
 
@@ -139,6 +133,7 @@ export function PrizesScreen() {
             busy={account.busy}
             error={account.error}
             onWallet={() => void account.signInWithWallet()}
+            onSocial={(provider) => void account.signInWithSocial(provider)}
           />
         ) : null}
 
@@ -326,7 +321,7 @@ function PayoutCard({
     setSaving(true);
     onError(null);
     try {
-      const wallet = await connectInjectedWallet(claim.chainId);
+      const wallet = await connectWallet(claim.chainId);
       await setPayoutWallet(wallet, claim.chainId, claim.contract, payTo as `0x${string}`);
       setRecipient(payTo.toLowerCase() as `0x${string}`);
       setEditing(false);

@@ -2,6 +2,16 @@
 pragma solidity 0.8.28;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+
+/// @dev An ERC-20 with EIP-2612 permits, like USDC.
+contract PermitToken is ERC20, ERC20Permit {
+    constructor() ERC20("Permit", "PRMT") ERC20Permit("Permit") {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+}
 
 contract MockERC20 is ERC20 {
     constructor() ERC20("Mock", "MOCK") {}

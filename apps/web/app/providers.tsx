@@ -3,6 +3,7 @@
 import { TooltipProvider } from "@radix-ui/react-tooltip";
 import { ThemeProvider } from "next-themes";
 import { useEffect, type ReactNode } from "react";
+import { SocialSignIn } from "@/components/privy-bridge";
 import { useTrackNavigation } from "@/lib/back";
 import { unlockSound } from "@/lib/sound";
 
@@ -21,7 +22,9 @@ export function Providers({ children }: { children: ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
-      <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
+      <TooltipProvider delayDuration={300}>
+        <SocialSignIn>{children}</SocialSignIn>
+      </TooltipProvider>
     </ThemeProvider>
   );
 }

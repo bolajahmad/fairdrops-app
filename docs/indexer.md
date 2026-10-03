@@ -173,13 +173,13 @@ differently: stop the worker (or let it stay halted) and call `resetChain` from
 BEGIN;
 DELETE FROM giveaway_events WHERE (chain_id, giveaway_id) IN
   (SELECT chain_id, giveaway_id FROM giveaways
-   WHERE chain_id = 10143 AND contract_address = '0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca');
+   WHERE chain_id = 10143 AND contract_address = '0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72');
 DELETE FROM giveaways
-  WHERE chain_id = 10143 AND contract_address = '0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca';
+  WHERE chain_id = 10143 AND contract_address = '0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72';
 DELETE FROM payout_wallets
-  WHERE chain_id = 10143 AND contract_address = '0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca';
+  WHERE chain_id = 10143 AND contract_address = '0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72';
 DELETE FROM chain_syncs
-  WHERE chain_id = 10143 AND contract_address = '0x40e79f68ae9ad9a28942050c5158a26d9c9e60ca';
+  WHERE chain_id = 10143 AND contract_address = '0x5ca0a86a6110917a5bb1170b0a18fd880aa8de72';
 COMMIT;
 ```
 

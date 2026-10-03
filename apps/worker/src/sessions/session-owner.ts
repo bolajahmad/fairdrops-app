@@ -116,11 +116,16 @@ export class SessionOwner {
           break;
         }
 
+        let crossed = false;
         while (checkpoints.length > 0 && checkpoints[0]! <= now) {
           checkpoints.shift();
-          this.publicDirty = true;
+          crossed = true;
         }
-        await this.maybePublishPublic(game, now);
+        // A checkpoint changes what each player sees too (a new round, a revealed answer), not
+        // just the public view: a player who hasn't acted since would otherwise keep a stale
+        // view, such as last round's "no rolls left".
+        if (crossed) await this.publishEverything(game, now);
+        else await this.maybePublishPublic(game, now);
 
         const wake = Math.min(checkpoints[0] ?? game.endAt, game.endAt);
         const block = Math.max(1, Math.min(wake - now, MAX_BLOCK_MS));

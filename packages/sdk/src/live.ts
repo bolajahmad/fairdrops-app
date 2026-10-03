@@ -72,6 +72,8 @@ export interface RoomEvents<PublicView, PlayerView> {
   player: { view: PlayerView; result?: ActionResult };
   status: { status: SessionStatus; ranking?: StandingView[] };
   error: { code: WsErrorCode; message: string };
+  /** The player opened the game on another device; this one can only watch until `claim()`. */
+  displaced: { sessionId: string };
 }
 
 /**
@@ -85,6 +87,8 @@ export class Room<PublicView = unknown, PlayerView = unknown> extends Emitter<
   publicView: PublicView | null = null;
   playerView: PlayerView | null = null;
   ranking: StandingView[] | null = null;
+  /** True after another device of the same player took the game; actions are refused. */
+  displaced = false;
 
   constructor(
     readonly sessionId: string,
@@ -103,6 +107,12 @@ export class Room<PublicView = unknown, PlayerView = unknown> extends Emitter<
 
   unsubscribe(): void {
     this.connection.unsubscribe(this.sessionId);
+  }
+
+  /** Moves the game back to this device ("Play here instead"). */
+  claim(): void {
+    this.displaced = false;
+    this.connection.claim(this.sessionId);
   }
 
   /** @internal */
@@ -133,6 +143,10 @@ export class Room<PublicView = unknown, PlayerView = unknown> extends Emitter<
         return;
       case "error":
         this.emit("error", { code: message.code, message: message.message });
+        return;
+      case "displaced":
+        this.displaced = true;
+        this.emit("displaced", { sessionId: message.sessionId });
         return;
       case "welcome":
       case "received":
@@ -196,8 +210,13 @@ export class LiveConnection extends Emitter<ConnectionEvents> {
     if (existing) return existing as Room<PublicView, PlayerView>;
     const room = new Room<PublicView, PlayerView>(sessionId, this);
     this.rooms.set(sessionId, room);
-    this.send({ type: "subscribe", sessionId });
+    this.send({ type: "subscribe", sessionId, claim: true });
     return room;
+  }
+
+  /** @internal */
+  claim(sessionId: string): void {
+    this.send({ type: "subscribe", sessionId, claim: true });
   }
 
   /** @internal */
@@ -302,7 +321,11 @@ export class LiveConnection extends Emitter<ConnectionEvents> {
 
   /** After (re)connecting: subscribe every room again and resend actions with no result yet. */
   private resume(): void {
-    for (const sessionId of this.rooms.keys()) this.send({ type: "subscribe", sessionId });
+    // Reclaim only seats this device still held: a reconnect mustn't pull the game back from
+    // the device the player moved to.
+    for (const [sessionId, room] of this.rooms) {
+      this.send({ type: "subscribe", sessionId, claim: !room.displaced });
+    }
     for (const pending of this.pending.values()) {
       this.send({
         type: "action",
@@ -341,6 +364,7 @@ export class LiveConnection extends Emitter<ConnectionEvents> {
       case "public":
       case "status":
       case "received":
+      case "displaced":
         break;
     }
     const sessionId = "sessionId" in message ? message.sessionId : undefined;

@@ -29,6 +29,7 @@ import {
   type PlayBeat,
 } from "@/lib/play-director";
 import { playBlip } from "@/lib/sound";
+import { PlayingElsewhere } from "./displaced";
 import { RoundsPlay } from "./rounds-play";
 import { LobbyStage } from "./lobby";
 import { DiceStage, NextStage, QuizStage } from "./stages";
@@ -47,6 +48,7 @@ export function LivePlay({ sessionId }: { sessionId: string }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [ended, setEnded] = useState<"CANCELLED" | "FAILED" | null>(null);
   const [rounds, setRounds] = useState(false);
+  const [elsewhere, setElsewhere] = useState(false);
   const [wallet, setWallet] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [now, setNow] = useState<number | null>(null);
@@ -100,6 +102,7 @@ export function LivePlay({ sessionId }: { sessionId: string }) {
           apply(snapshot.status);
         });
         nextRoom.on("public", (view) => setViews((current) => ({ ...current, publicView: view })));
+        nextRoom.on("displaced", () => setElsewhere(true));
         nextRoom.on("player", ({ view }) =>
           setViews((current) => ({ ...current, playerView: view })),
         );
@@ -235,26 +238,49 @@ export function LivePlay({ sessionId }: { sessionId: string }) {
   }
 
   const slot = beat.type === "play" || beat.type === "next" ? lineup[beat.slot] : undefined;
-  const toast = actionError ? <ActionToast>{actionError}</ActionToast> : null;
+  const toast = (
+    <>
+      {actionError ? <ActionToast>{actionError}</ActionToast> : null}
+      {elsewhere ? (
+        <PlayingElsewhere
+          onPlayHere={() => {
+            room?.claim();
+            setElsewhere(false);
+          }}
+        />
+      ) : null}
+    </>
+  );
   const secondsLeft = (endsAt: number) => Math.max(0, Math.ceil((endsAt - now) / 1000));
 
   if (beat.type === "lobby") {
     return (
-      <LobbyStage
-        title="Get ready"
-        seconds={Math.max(0, Math.ceil((Date.parse(session.startsAt) - now) / 1000))}
-        games={lineup}
-        players={session.playerCount}
-        backHref={`/g/${session.chainId}/${session.giveawayId}`}
-        sessionId={session.id}
-        giveaway={{ chainId: session.chainId, giveawayId: session.giveawayId }}
-      />
+      <>
+        <LobbyStage
+          title="Get ready"
+          seconds={Math.max(0, Math.ceil((Date.parse(session.startsAt) - now) / 1000))}
+          games={lineup}
+          players={session.playerCount}
+          backHref={`/g/${session.chainId}/${session.giveawayId}`}
+          sessionId={session.id}
+          giveaway={{ chainId: session.chainId, giveawayId: session.giveawayId }}
+        />
+        {toast}
+      </>
     );
   }
 
   if (beat.type === "next" && slot) {
     return (
-      <NextStage slot={slot} index={beat.slot + 1} total={lineup.length} onDone={onCountdownDone} />
+      <>
+        <NextStage
+          slot={slot}
+          index={beat.slot + 1}
+          total={lineup.length}
+          onDone={onCountdownDone}
+        />
+        {toast}
+      </>
     );
   }
 

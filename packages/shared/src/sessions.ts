@@ -126,7 +126,16 @@ export const SCORE_REPORT_TYPES = {
  * play; without one the socket can only watch.
  */
 export const clientMessageSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("subscribe"), sessionId: uuidSchema }),
+  z.object({
+    type: z.literal("subscribe"),
+    sessionId: uuidSchema,
+    /**
+     * Take this player's seat in the game: a player plays on one device at a time, and the
+     * newest device to claim wins. Clients claim when the game opens, and again only on
+     * "Play here instead", so reconnecting after being displaced doesn't take the seat back.
+     */
+    claim: z.boolean().default(true),
+  }),
   z.object({ type: z.literal("unsubscribe"), sessionId: uuidSchema }),
   z.object({
     type: z.literal("action"),
@@ -158,6 +167,8 @@ export const wsErrorCodeSchema = z.enum([
   "NOT_A_PLAYER",
   "NOT_RUNNING",
   "INVALID_ACTION",
+  /** The player's seat is on another device; take it back with a claiming subscribe. */
+  "PLAYING_ELSEWHERE",
   "RATE_LIMITED",
   "INTERNAL",
 ]);
@@ -202,6 +213,8 @@ export const serverMessageSchema = z.discriminatedUnion("type", [
     id: z.string().optional(),
   }),
   z.object({ type: z.literal("pong"), t: z.number().optional(), serverTime: z.number() }),
+  /** Another device of the same player took the seat; this one can only watch now. */
+  z.object({ type: z.literal("displaced"), sessionId: uuidSchema }),
 ]);
 export type ServerMessage = z.infer<typeof serverMessageSchema>;
 
@@ -236,6 +249,10 @@ export const sessionKeys = {
   playerViews: (sessionId: string) => `fd:session:${sessionId}:players`,
   /** Held by the worker running the game. */
   owner: (sessionId: string) => `fd:session:${sessionId}:owner`,
+  /** Which connection a player plays from: one device at a time. Expires without heartbeats. */
+  seat: (sessionId: string, wallet: string) => `fd:session:${sessionId}:seat:${wallet}`,
+  /** Pub/sub channel where gateways announce a seat taken, so the old device is told. */
+  seats: (sessionId: string) => `fd:session:${sessionId}:seats`,
 } as const;
 
 /** Players may send at most this many actions per second on one socket. */

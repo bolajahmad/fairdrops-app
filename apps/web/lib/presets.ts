@@ -11,7 +11,7 @@ export type PlayMode = "once" | "rounds";
 /** The per-person win limit hosts start from. */
 export const DEFAULT_MAX_WINS = 3;
 /** Seconds between rounds, when people can join or leave. */
-export const DEFAULT_ROUND_BREAK_SECONDS = 10;
+export const DEFAULT_ROUND_BREAK_SECONDS = 20;
 
 /** How long a rounds giveaway keeps playing, in minutes: the host's choices. */
 export const PLAY_TIMES = [15, 30, 60, 180] as const;
